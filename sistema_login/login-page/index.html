@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/x-icon,;">
+  <title>Login | MyGeli</title>
+</head>
+<body>
+
+  <div class="loader-wrapper" id="loader-wrapper">
+    <div class="loader-container">
+      <p class="loader-text">Carregando</p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <p class="progress-percentage" id="progress-percentage">0%</p>
+    </div>
+  </div>
+
+    <div class="login-div">
+        <h2>Login</h2>
+        <label for="input-email">E-mail</label>
+        <input type="email" name="email" id="input-email">
+        <label for="input-senha">Senha</label>
+        <input type="password" name="senha" id="input-senha">
+        <a href="#">Esqueceu sua senha?</a>
+        <br>
+        <input type="submit" value="Entrar">
+    </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
