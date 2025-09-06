@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Quando o carregamento chega a 100%
       loaderWrapper.classList.add('hidden');
       document.body.classList.add('loaded');
+      loginContainer.classList.add('animated');
     }
   }
 
