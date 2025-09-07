@@ -60,11 +60,130 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 /* Classe para mostrar o body após o carregamento */
 body.loaded {
   opacity: 1;
+}
+
+.coluna1{
+  position: absolute;
+  width: 130px;
+  height: 80%;
+  left: -1%;
+  top: -4%;
+  background: none;
+  z-index: 1;
+  display: flex;
+  transform: rotate(18deg);
+}
+
+.bar1fra-12{
+  position: relative;
+  width: 65px;
+  height: 100%;
+  top: 30%;
+  background: #159a9c;
+  opacity: 12%;
+} 
+
+.bar1for-12{
+  position: relative;
+  width: 65px;
+  height: 100%;
+  top: -30%;
+  background: #b4bec9;
+  opacity: 12%;
+}
+
+.coluna2{
+  position: absolute;
+  width: 260px;
+  height: 80%;
+  left: 10%;
+  background: none;
+  z-index: 1;
+  display: flex;
+  transform: rotate(18deg);
+}
+
+.bar1fra-23{
+  position: relative;
+  width: 130px;
+  height: 130%;
+  top: 30%;
+  background: #b4bec9;
+  opacity: 23%;
+} 
+
+.bar1for-23{
+  position: relative;
+  width: 130px;
+  height: 130%;
+  top: -60%;
+  background: #159a9c;
+  opacity: 23%;
+}
+
+.coluna3{
+  position: absolute;
+  width: 260px;
+  height: 80%;
+  right: 10%;
+  background: none;
+  z-index: 1;
+  display: flex;
+  transform: rotate(18deg);
+}
+
+.bar2fra-23{
+  position: relative;
+  width: 130px;
+  height: 130%;
+  top: 30%;
+  background: #159a9c;
+  opacity: 23%;
+} 
+
+.bar2for-23{
+  position: relative;
+  width: 130px;
+  height: 130%;
+  top: -60%;
+  background: #b4bec9;
+  opacity: 23%;
+}
+
+.coluna4{
+  position: absolute;
+  width: 130px;
+  height: 80%;
+  right: -1%;
+  bottom: -4%;
+  background: none;
+  z-index: 1;
+  display: flex;
+  transform: rotate(18deg);
+}
+
+.bar1fra-12{
+  position: relative;
+  width: 65px;
+  height: 100%;
+  top: 30%;
+  background: #159a9c;
+  opacity: 12%;
+} 
+
+.bar1for-12{
+  position: relative;
+  width: 65px;
+  height: 100%;
+  top: -30%;
+  background: #b4bec9;
+  opacity: 12%;
 }
 
 .login-container {
@@ -75,6 +194,11 @@ body.loaded {
   max-width: 90%;
   padding: 2rem;
   border: 3px solid #159A9C;
+  z-index: 2;
+}
+
+.login-container.animated {
+  animation: elevate 0.5s ease-out forwards;
 }
 
 .login-header{
@@ -118,6 +242,12 @@ body.loaded {
 }
 
 .password-field{
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.email-field{
   position: relative;
   display: flex;
   align-items: center;
@@ -244,5 +374,27 @@ body.loaded {
   
   .forgot-password{
     margin-top: 0.5rem;
+  }
+  
+  .coluna2,
+  .coluna3,
+  .coluna4{
+    display: none;
+  }
+  
+  .coluna1{
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes elevate {
+  from{
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to{
+    transform: translateY(0);
+    opacity: 1;
   }
 }
