@@ -34,6 +34,23 @@ CREATE TABLE `produtos` (
   `tipo_volume` varchar(12) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE IF NOT EXISTS `usuarios` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `nome` VARCHAR(255),
+  `telefone` VARCHAR(30),
+  `email` VARCHAR(255) UNIQUE NOT NULL,
+  `senha` VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS `login_tokens` (
+  `token_id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `selector` VARCHAR(255) NOT NULL,
+  `hashed_token` VARCHAR(255) NOT NULL,
+  `expires` DATETIME NOT NULL,
+  FOREIGN KEY (`user_id`) REFERENCES `usuarios`(`id`) ON DELETE CASCADE
+);
+
 --
 -- Despejando dados para a tabela `produtos`
 --
