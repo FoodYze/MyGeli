@@ -17,3 +17,7 @@ No segundo semestre de 2025 estamos com uma nova missão, desenvolver uma versã
 - Sistemas de Login e Cadastro em desenvolvimento
 - Layout e UX aprimorado
 - Correção de bugs
+
+## Você ainda não conhece a MyGeli?
+
+[Clique aqui!](https://linktr.ee/mygeli) para acessar a documentação e conhecer mais sobre o projeto!
