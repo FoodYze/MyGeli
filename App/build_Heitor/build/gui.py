@@ -95,7 +95,7 @@ def formatar_estoque_para_ia(lista_estoque):
 # --- INÍCIO: Configuração da API Gemini ---
 # IMPORTANTE: Substitua pela sua chave API. Considere usar variáveis de ambiente em produção.
 # Substitua 'SUA_CHAVE_API_AQUI' pela sua chave real.
-GOOGLE_API_KEY = 'Sua Chave de Api Aqui' # Mantenha sua chave aqui se já configurada
+GOOGLE_API_KEY = 'Sua chave aqui' # Mantenha sua chave aqui se já configurada
 
 API_CONFIGURADA = False
 model = None
@@ -151,7 +151,7 @@ else:
                         "[Quantidade] de [Ingrediente] (do estoque)"
                         "[Quantidade] de [Ingrediente]"
                         "NOTA IMPORTANTE PARA ITENS DO ESTOQUE: A quantidade listada para um item (do estoque) deve ser precisa, pois o sistema a usará para calcular a remoção do banco de dados. Exemplo: se o estoque tem 'Leite: 1 Litro' e a receita usa '250 ml de Leite (do estoque)', o sistema precisa do valor '250 ml' para fazer a subtração correta."
-                        "REGRA CRÍTICA DE QUANTIDADE: O uso de termos vagos como 'a gosto' é PROIBIDO para ingredientes estruturais (ex: farinha, óleo, leite). Para estes, forneça uma quantidade inicial clara e útil (ex: '1 xícara de farinha')."
+                        "REGRA CRÍTICA DE QUANTIDADE: O uso de termos vagos como 'a gosto' é PROIBIDO para ingredientes estruturais (ex: farinha, óleo, leite). Para estes, forneça uma quantidade inicial clara e útil usando gramas ou mililitros (ex: '250 mililitros de Leite(1 xicara),(ex: '250 gramas de Farrinha(Aproximadamente 1 xicara)')."
                         "[ESPAÇAMENTO]"
                         "PREPARO:"
                         "- [Primeiro passo da receita]"
