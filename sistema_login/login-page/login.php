@@ -1,6 +1,6 @@
 <?php
   // Estabelecendo conexão com o banco de dados
-  $pdo = new PDO('mysql:host=localhost;dbname=meu_banco_de_dados', 'meu_usuario', 'minha_senha');
+  $pdo = new PDO('mysql:host=localhost;dbname=foodyze', 'foodyzeadm', 'supfood0017admx');
 
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Lógica de Login com Token persistente
@@ -21,7 +21,7 @@
         if ($lembrar_de_mim) {
           // Gerar os tokens
           $selector = bin2hex(random_bytes(16)); // 16 bytes = 32 caracteres hex
-          $authenticator = bin2hex(random__bytes(32)); // 32 bytes = 64 caracteres hex
+          $authenticator = bin2hex(random_bytes(32)); // 32 bytes = 64 caracteres hex
           $hashed_authenticator = hash('sha256', $authenticator);
           // Calcular expiração e salvar no BD
           $expires = date('Y-m-d H:i:s', strtotime('+30 days'));
@@ -34,13 +34,13 @@
                     'path' => '/',
                     'httponly' => true,
                     'secure' => true,
-                    'samesite' = 'Lax'
+                    'samesite' => 'Lax'
           ]);
         }
-        header('Location: ../general-page/index.html');
+        header('Location: ../general-page/index.php');
         exit();
       } else {
-        echo "Email ou senha incorretod."
+        echo "Email ou senha incorretos.";
       }
     }
   }
