@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Tempo de geração: 10-Set-2025 às 17:06
+-- Tempo de geração: 16-Set-2025 às 16:15
 -- Versão do servidor: 10.4.32-MariaDB
 -- versão do PHP: 8.2.12
 
@@ -72,6 +72,19 @@ INSERT INTO `produtos` (`id_produto`, `nome_produto`, `quantidade_produto`, `tip
 -- --------------------------------------------------------
 
 --
+-- Estrutura da tabela `receitas`
+--
+
+CREATE TABLE `receitas` (
+  `idreceita` int(3) NOT NULL,
+  `tituloreceita` varchar(100) NOT NULL,
+  `descreceita` text NOT NULL,
+  `idusuario` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estrutura da tabela `usuarios`
 --
 
@@ -109,6 +122,13 @@ ALTER TABLE `produtos`
   ADD PRIMARY KEY (`id_produto`);
 
 --
+-- Índices para tabela `receitas`
+--
+ALTER TABLE `receitas`
+  ADD PRIMARY KEY (`idreceita`),
+  ADD KEY `fk_receita_usuario` (`idusuario`);
+
+--
 -- Índices para tabela `usuarios`
 --
 ALTER TABLE `usuarios`
@@ -132,6 +152,12 @@ ALTER TABLE `produtos`
   MODIFY `id_produto` int(3) UNSIGNED ZEROFILL NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
+-- AUTO_INCREMENT de tabela `receitas`
+--
+ALTER TABLE `receitas`
+  MODIFY `idreceita` int(3) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de tabela `usuarios`
 --
 ALTER TABLE `usuarios`
@@ -146,6 +172,12 @@ ALTER TABLE `usuarios`
 --
 ALTER TABLE `login_tokens`
   ADD CONSTRAINT `login_tokens_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE;
+
+--
+-- Limitadores para a tabela `receitas`
+--
+ALTER TABLE `receitas`
+  ADD CONSTRAINT `fk_receita_usuario` FOREIGN KEY (`idusuario`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
