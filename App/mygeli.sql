@@ -63,12 +63,15 @@ CREATE TABLE `produtos` (
 --
 
 INSERT INTO `produtos` (`id_produto`, `nome_produto`, `quantidade_produto`, `tipo_volume`) VALUES
+(001, 'Abacaxi', 2, 'Unidades'),
+(002, 'Frango', 1300, 'Gramas'),
+(003, 'Açucar', 300, 'Gramas'),
 (004, 'Ovo', 12, 'Unidades'),
-(005, 'Farinha', 2, 'Kg'),
+(005, 'Farinha', 2000, 'Gramas'),
 (006, 'Carne', 900, 'Gramas'),
 (007, 'Batata', 3, 'Unidades'),
 (008, 'Chocolate', 200, 'Gramas'),
-(009, 'Leite', 2, 'Litros'),
+(009, 'Leite', 2000, 'Mililitros'),
 (010, 'Cenoura', 2, 'Unidades');
 
 -- --------------------------------------------------------
