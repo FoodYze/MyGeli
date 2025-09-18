@@ -95,7 +95,7 @@ def formatar_estoque_para_ia(lista_estoque):
 # --- INÍCIO: Configuração da API Gemini ---
 # IMPORTANTE: Substitua pela sua chave API. Considere usar variáveis de ambiente em produção.
 # Substitua 'SUA_CHAVE_API_AQUI' pela sua chave real.
-GOOGLE_API_KEY = 'AIzaSyAWdU1NiXHbiL7wnZSANHS-_VRu_odbg9I' # Mantenha sua chave aqui se já configurada
+GOOGLE_API_KEY = 'Sua Chave de Api Aqui' # Mantenha sua chave aqui se já configurada
 
 API_CONFIGURADA = False
 model = None
