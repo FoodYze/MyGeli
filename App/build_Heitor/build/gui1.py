@@ -74,9 +74,9 @@ def abrir_gui3():
     app.destroy()
     subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui3.py")])
 
-def abrir_gui():
+def abrir_gui0():
     app.destroy()
-    subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui.py")])
+    subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui0.py")])
 
 # --- Main Application Class ---
 class App(ctk.CTk):
@@ -192,7 +192,7 @@ class App(ctk.CTk):
 
         # Botão 1 - Falar com Geli
         ctk.CTkButton(self.buttons_frame, text="FALAR COM GELI",
-                      command=abrir_gui,
+                      command=abrir_gui0,
                       fg_color="#0084FF",
                       hover_color="#0066CC",
                       text_color="white",
