@@ -37,7 +37,7 @@ def conectar_mysql(host, database, user, password):
 
 # Substituir com suas credenciais e informações do banco de dados
 db_host = "localhost"
-db_name = "foodyze"
+db_name = "mygeli"
 db_usuario = "foodyzeadm"
 db_senha = "supfood0017admx"
 
