@@ -32,7 +32,7 @@ def conectar_mysql(host, database, user, password):
 
 # --- SUAS CREDENCIAIS ---
 db_host = "localhost"
-db_name = "foodyze"
+db_name = "mygeli"
 db_usuario = "foodyzeadm"
 db_senha = "supfood0017admx"
 
@@ -111,10 +111,10 @@ class InventoryApp(ctk.CTk):
             return (float(quantidade), 'Gramas')
 
         # Converte para MILILITROS (ml)
-        if 'l' in unidade_lower or 'litros' in unidade_lower:
-            return (float(quantidade) * 1000, 'ml')
-        elif 'ml' in unidade_lower or 'mililitros' in unidade_lower:
-            return (float(quantidade), 'ml')
+        if 'ml' in unidade_lower or 'mililitros' in unidade_lower:
+            return (float(quantidade), 'Mililitros')
+        elif 'l' in unidade_lower or 'litros' in unidade_lower:
+            return (float(quantidade) * 1000, 'Mililitros')
         
         # Mantém UNIDADES
         if 'unidades' in unidade_lower:
@@ -131,7 +131,7 @@ class InventoryApp(ctk.CTk):
             # {:g} remove zeros insignificantes (ex: 2.0 -> 2, mas 2.1 -> 2,1)
             return ("{:g}".format(qtd_convertida).replace('.', ','), "Kg")
         
-        if unidade == 'ml' and qtd_float >= 1000:
+        if unidade == 'Mililitros' and qtd_float >= 1000:
             qtd_convertida = qtd_float / 1000
             return ("{:g}".format(qtd_convertida).replace('.', ','), "L")
 
@@ -264,7 +264,7 @@ class InventoryApp(ctk.CTk):
                 is_low_stock = True
             elif unit == 'Gramas' and numeric_qty <= 500: # Regra unificada: <= 500g é baixo estoque
                 is_low_stock = True
-            elif unit == 'ml' and numeric_qty <= 500: # Regra unificada: <= 500ml é baixo estoque
+            elif unit == 'Mililitros' and numeric_qty <= 500: # Regra unificada: <= 500ml é baixo estoque
                 is_low_stock = True
 
             if is_low_stock:
@@ -313,7 +313,7 @@ class InventoryApp(ctk.CTk):
                 base_unit = self.local_stock[normalized_name]["unidade"]
                 if base_unit == "Gramas":
                     unidade_combobox.configure(values=self.mass_units); unidade_var.set(self.mass_units[0])
-                elif base_unit == "ml":
+                elif base_unit == "Mililitros":
                     unidade_combobox.configure(values=self.volume_units); unidade_var.set(self.volume_units[0])
                 elif base_unit == "Unidades":
                     unidade_combobox.configure(values=self.unit_units); unidade_var.set(self.unit_units[0])
@@ -394,7 +394,7 @@ class InventoryApp(ctk.CTk):
                 unit = self.local_stock[selected_item_name]["unidade"]
                 if unit == "Gramas":
                     unidade_remover_combobox.configure(values=self.mass_units); unidade_remover_var.set(self.mass_units[0])
-                elif unit == "ml":
+                elif unit == "Mililitros":
                     unidade_remover_combobox.configure(values=self.volume_units); unidade_remover_var.set(self.volume_units[0])
                 else:
                     unidade_remover_combobox.configure(values=self.unit_units); unidade_remover_var.set(self.unit_units[0])
