@@ -21,3 +21,7 @@ No segundo semestre de 2025 estamos com uma nova missão, desenvolver uma versã
 ## Você ainda não conhece a MyGeli?
 
 [Clique aqui!](https://linktr.ee/mygeli) para acessar a documentação e conhecer mais sobre o projeto!
+
+<p align="center">
+  <img src="https://komarev.com/ghpvc/?username=FoodYze&color=blue" alt="Visitas ao perfil" />
+</p>
