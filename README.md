@@ -22,6 +22,12 @@ No segundo semestre de 2025 estamos com uma nova missão, desenvolver uma versã
 
 [Clique aqui!](https://linktr.ee/mygeli) para acessar a documentação e conhecer mais sobre o projeto!
 
+---
+
+<div align="center">
+  <h3><b>📍 Visitas ao perfil</b></h3>
+</div>
+
 <p align="center">
   <img src="https://komarev.com/ghpvc/?username=FoodYze&color=blue" alt="Visitas ao perfil" />
 </p>
