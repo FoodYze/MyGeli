@@ -38,11 +38,9 @@ db_senha = "supfood0017admx"
 
 # --- CAMINHOS DOS ARQUIVOS ---
 OUTPUT_PATH = Path(__file__).parent
-SETA_IMAGE_PATH = OUTPUT_PATH / "seta.png"
-UP_ARROW_IMAGE_PATH = OUTPUT_PATH / "up_arrow.png"
-DOWN_ARROW_IMAGE_PATH = OUTPUT_PATH / "down_arrow.png"
-# O caminho para a imagem padrão do item não é mais necessário.
-# DEFAULT_ITEM_IMAGE_PATH = OUTPUT_PATH / "default.png"
+SETA_IMAGE_PATH = OUTPUT_PATH / "assets" / "geral" / "seta.png"
+UP_ARROW_IMAGE_PATH = OUTPUT_PATH / "assets" / "geral" / "up_arrow.png"
+DOWN_ARROW_IMAGE_PATH = OUTPUT_PATH / "assets" / "geral" / "down_arrow.png"
 
 class InventoryApp(ctk.CTk):
     def __init__(self, db_connection):
@@ -59,7 +57,13 @@ class InventoryApp(ctk.CTk):
         ctk.set_default_color_theme("blue")
 
         self.title("Estoque")
-        self.geometry("400x650")
+        window_width = 400
+        window_height = 650
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        center_x = int(screen_width/2 - window_width / 2)
+        center_y = int(screen_height/2 - window_height / 2)
+        self.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
         self.minsize(400, 650); self.maxsize(400, 650)
         self.configure(fg_color="#F5F5F5")
 

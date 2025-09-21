@@ -4,236 +4,146 @@ import sys
 import mysql.connector
 from mysql.connector import Error
 from pathlib import Path
-from PIL import Image, ImageTk, ImageSequence
+from PIL import Image, ImageSequence
 
+# --- Conexão com Banco de Dados ---
 def conectar_mysql(host, database, user, password):
     """
-    Tenta conectar ao banco de dados MySQL e imprime o status da conexão.
-    Retorna o objeto de conexão bem sucedido, None no caso contrário.
+    Tenta conectar ao banco de dados MySQL. Retorna a conexão ou None.
     """
-
-    conexao = None
     try:
-        conexao = mysql.connector.connect(
-            host=host,
-            database=database,
-            user=user,
-            password=password
-        )
+        conexao = mysql.connector.connect(host=host, database=database, user=user, password=password)
         if conexao.is_connected():
-            db_info = conexao.get_server_info()
-            print(f"Conectado ao MySQL versão {db_info}")
-            cursor = conexao.cursor()
-            cursor.execute("select database();")
-            record = cursor.fetchone()
-            print(f"Você está conectado ao banco de dados: {record[0]}")
             print("Log: Conexão ao MySQL bem-sucedida!")
             return conexao
     except Error as e:
         print(f"Log: Erro ao conectar ao MySQL: {e}")
         return None
-    # Não fechamos a conexão aqui se quisermos usá-la depois
-    # A conexão deve ser fechada quando não for mais necessária.
 
-# Substituir com suas credenciais e informações do banco de dados
-db_host = "localhost"
-db_name = "mygeli"
-db_usuario = "foodyzeadm"
-db_senha = "supfood0017admx"
+# --- Navegação entre Telas ---
+def abrir_gui(nome_arquivo):
+    """Fecha a janela atual e abre um novo script de GUI."""
+    if app:
+        app.destroy()
+    try:
+        caminho_script = str(Path(__file__).parent / nome_arquivo)
+        subprocess.Popen([sys.executable, caminho_script])
+    except Exception as e:
+        print(f"Erro ao tentar abrir {nome_arquivo}: {e}")
 
-# Tenta conectar
-minha_conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
-
-"""
-if minha_conexao and minha_conexao.is_connected():
-    * Aqui eu faria as operações de banco de dados (queries, etc.)
-    * Por exemplo:
-    * cursor = minha_conexao.cursor()
-    * cursor.execute("SELECT * FROM produtos")
-    * resultados = cursor.fetchall()
-    * for linha in resultados
-    * print(linha)
-
-    minha_conexao.close()
-    print("Log: Conexão ao MySQL foi fechada.")
-"""
-
-# --- Paths and Setup ---
-OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / "assets" / "frame1"
-
-def relative_to_assets(path: str) -> Path:
-    return ASSETS_PATH / Path(path)
-
-# --- Navigation Functions (Mantidas as funcionalidades originais) ---
-def abrir_gui2():
-    app.destroy()
-    subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui2.py")])
-
-def abrir_gui3():
-    app.destroy()
-    subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui3.py")])
-
-def abrir_gui0():
-    app.destroy()
-    subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui0.py")])
-
-# --- Main Application Class ---
+# --- Classe Principal da Aplicação ---
 class App(ctk.CTk):
-    def __init__(self):
+    """
+    A tela principal (menu) do aplicativo MyGeli.
+    """
+    # --- Constantes de Estilo para Padronização ---
+    WINDOW_WIDTH = 400
+    WINDOW_HEIGHT = 650
+    BG_COLOR = "#F5F5F5"
+    HEADER_COLOR = "#0084FF"
+    BUTTON_COLOR = "#0084FF"
+    BUTTON_HOVER_COLOR = "#0066CC"
+    BUTTON_TEXT_COLOR = "white"
+    CARD_COLOR = "#FFFFFF"
+    CARD_BORDER_COLOR = "#E0E0E0"
+
+    def __init__(self, db_connection):
         super().__init__()
-
-        # Configuração do tema (igual ao app de chat)
-        ctk.set_appearance_mode("light")
-        ctk.set_default_color_theme("blue")
-
-        # Configuração da janela
-        self.title("MyGeli")
-        self.geometry("400x650")
-        self.minsize(400, 650)
-        self.maxsize(400, 650)
-        self.configure(fg_color="#F5F5F5") # Cor de fundo da janela principal
-
-        # Configuração de fontes modernas
-        try:
-            self.large_font = ctk.CTkFont("Poppins Bold", 28)
-            self.medium_font = ctk.CTkFont("Poppins Medium", 18) # Aumentado de 16 para 18
-            self.small_font = ctk.CTkFont("Poppins Light", 14) # Aumentado de 12 para 14
-            self.button_font = ctk.CTkFont("Poppins SemiBold", 18) # Aumentado de 16 para 18
-            # Nova fonte para o ícone do robô
-            self.robot_font = ctk.CTkFont("Segoe UI Emoji", 80) # Aumentado de 60 para 80
-        except Exception:
-            self.large_font = ctk.CTkFont("Arial Bold", 28)
-            self.medium_font = ctk.CTkFont("Arial", 18) # Aumentado
-            self.small_font = ctk.CTkFont("Arial", 14) # Aumentado
-            self.button_font = ctk.CTkFont("Arial Bold", 18) # Aumentado
-            self.robot_font = ctk.CTkFont("Arial", 80) # Aumentado
-
-        # Layout principal (usando grid para centralizar e organizar)
-        self.grid_rowconfigure(0, weight=0) # Cabeçalho terá altura fixa
-        self.grid_rowconfigure(1, weight=1) # Espaço flexível para o conteúdo central
-        self.grid_rowconfigure(2, weight=0) # Rodapé terá altura fixa
-        self.grid_columnconfigure(0, weight=1) # Coluna central flexível
-
-        # --- Cabeçalho para o GIF (ocupando a largura total) ---
-        self.header_frame = ctk.CTkFrame(self, height=80, corner_radius=0, fg_color="#0084FF") # Altura fixa para o cabeçalho
-        self.header_frame.grid(row=0, column=0, sticky="new") # sticky "new" para alinhar ao topo e preencher largura
-        self.header_frame.grid_propagate(False) # Impede que o frame se redimensione para caber o conteúdo
-        self.header_frame.grid_columnconfigure(0, weight=1) # Centraliza o conteúdo dentro do cabeçalho
-
-        self.gif_label = ctk.CTkLabel(self.header_frame, text="", bg_color="transparent")
-        self.gif_label.grid(row=0, column=0, pady=10, sticky="nsew") # Centralizado e preenche o espaço
-
+        
+        self.db_connection = db_connection
         self.gif_frames = []
-        self.current_frame = 0
-        try:
-            gif_path = relative_to_assets("foodyze_logo.gif")
-            gif = Image.open(gif_path)
-            
-            for frame in ImageSequence.Iterator(gif):
-                # Redimensiona o GIF para a largura da tela (375) e altura do cabeçalho (60)
-                pil_image_frame = frame.resize((375, 60), Image.LANCZOS).convert("RGBA")
-                self.gif_frames.append(pil_image_frame)
-            
-            self.update_gif()
-            
-        except Exception as e:
-            print(f"Erro ao carregar GIF: {e}")
-            # Fallback para texto caso o GIF não seja carregado
-            ctk.CTkLabel(self.header_frame, text="MyGeli", 
-                         font=self.large_font, text_color="white", # Texto branco no cabeçalho
-                         bg_color="transparent").grid(row=0, column=0, pady=10, sticky="nsew")
+        self.current_frame_index = 0
 
+        self._configurar_janela()
+        self._criar_fontes()
+        self._criar_widgets()
 
-        # --- Conteúdo Principal (Centralizado Verticalmente com espaçamento flexível) ---
-        # Criar um frame para o conteúdo principal para melhor organização
-        self.main_content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.main_content_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
-        self.main_content_frame.grid_columnconfigure(0, weight=1) # Centraliza conteúdo horizontalmente
-        # As linhas dentro deste frame terão pesos para distribuir o espaço
-        self.main_content_frame.grid_rowconfigure(0, weight=1) # Espaço antes do robô
-        self.main_content_frame.grid_rowconfigure(1, weight=0) # Robô
-        self.main_content_frame.grid_rowconfigure(2, weight=0) # Espaço antes do slogan
-        self.main_content_frame.grid_rowconfigure(3, weight=0) # Slogan
-        self.main_content_frame.grid_rowconfigure(4, weight=0) # Descrição
-        self.main_content_frame.grid_rowconfigure(5, weight=1) # Espaço antes dos botões
-        self.main_content_frame.grid_rowconfigure(6, weight=0) # Botões
-        self.main_content_frame.grid_rowconfigure(7, weight=1) # Espaço depois dos botões
+    def _configurar_janela(self):
+        """Define as propriedades principais da janela (título, tamanho, etc.)."""
+        self.title("MyGeli")
+        ctk.set_appearance_mode("light")
+        
+        # Centraliza a janela na tela
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        center_x = int(screen_width / 2 - self.WINDOW_WIDTH / 2)
+        center_y = int(screen_height / 2 - self.WINDOW_HEIGHT / 2)
+        
+        self.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}+{center_x}+{center_y}")
+        self.minsize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
+        self.maxsize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
+        self.configure(fg_color=self.BG_COLOR)
 
-        # --- Robozinho Minimalista (agora com imagem PNG) ---
-        self.robot_image = None
-        try:
-            # Carrega a imagem PNG
-            image_path = relative_to_assets("bot_icon.png") # Certifique-se de que este caminho está correto
-            original_image = Image.open(image_path).convert("RGBA")
-            # Redimensiona a imagem para um tamanho adequado (ex: 100x100)
-            resized_image = original_image.resize((200, 200), Image.LANCZOS)
-            self.robot_image = ctk.CTkImage(light_image=resized_image, dark_image=resized_image, size=(200, 200))
-           
-            ctk.CTkLabel(self.main_content_frame, image=self.robot_image, text="", # Remove o texto para usar a imagem
-                         bg_color="transparent").grid(row=1, column=0, pady=(20, 10))
-        except Exception as e:
-            print(f"Erro ao carregar a imagem do robô: {e}")
-            # Fallback para o emoji de robô se a imagem não carregar
-            ctk.CTkLabel(self.main_content_frame, text="🤖", # Emoji de robô
-                         font=ctk.CTkFont("Segoe UI Emoji", 80), text_color="#0084FF",
-                         bg_color="transparent").grid(row=1, column=0, pady=(20, 10))
-        ctk.CTkLabel(self.main_content_frame, text="Seu Assistente Culinário Completo",
-                     font=self.medium_font, text_color="#333333",
-                     bg_color="transparent").grid(row=3, column=0, pady=(0, 5))
-        ctk.CTkLabel(self.main_content_frame, text="Tudo que você precisa para\numa cozinha inteligente e sem desperdício",
-                     font=self.small_font, text_color="#666666", justify="center",
-                     bg_color="transparent").grid(row=4, column=0, pady=(5, 0))
-        # Container para os botões com sombra sutil (simulado com CTkFrame e borda)
-        self.buttons_frame = ctk.CTkFrame(self.main_content_frame, fg_color="#FFFFFF", corner_radius=12,
-                                          border_color="#E0E0E0", border_width=1)
-        self.buttons_frame.grid(row=6, column=0, padx=30, pady=(20, 0), sticky="ew") # Ajustado para row=6
-        self.buttons_frame.grid_columnconfigure(0, weight=1)
+    def _criar_fontes(self):
+            self.large_font = ctk.CTkFont("Poppins Bold", 28)
+            self.medium_font = ctk.CTkFont("Poppins Medium", 18)
+            self.small_font = ctk.CTkFont("Poppins Light", 14)
+            self.button_font = ctk.CTkFont("Poppins SemiBold", 18)
 
-        # Botão 1 - Falar com Geli
-        ctk.CTkButton(self.buttons_frame, text="FALAR COM GELI",
-                      command=abrir_gui0,
-                      fg_color="#0084FF",
-                      hover_color="#0066CC",
-                      text_color="white",
-                      font=self.button_font,
-                      corner_radius=12,
-                      height=55 # Aumentado de 50 para 55
-                     ).grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
+    def _criar_widgets(self):
+        # --- Configuração do Layout Principal ---
+        self.grid_rowconfigure(0, weight=0)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
 
-        # Botão 2 - Ver Receitas
-        ctk.CTkButton(self.buttons_frame, text="VER RECEITAS",
-                      command=abrir_gui2,
-                      fg_color="#0084FF",
-                      hover_color="#0066CC",
-                      text_color="white",
-                      font=self.button_font,
-                      corner_radius=12,
-                      height=55 # Aumentado de 50 para 55
-                     ).grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+        # --- Cabeçalho ---
+        header_frame = ctk.CTkFrame(self, height=80, corner_radius=0, fg_color=self.HEADER_COLOR)
+        header_frame.grid(row=0, column=0, sticky="new")
+        header_frame.grid_propagate(False)
 
-        # Botão 3 - Gerenciar Estoque
-        ctk.CTkButton(self.buttons_frame, text="GERENCIAR ESTOQUE",
-                      command=abrir_gui3,
-                      fg_color="#0084FF",
-                      hover_color="#0066CC",
-                      text_color="white",
-                      font=self.button_font,
-                      corner_radius=12,
-                      height=55 # Aumentado de 50 para 55
-                     ).grid(row=2, column=0, padx=20, pady=(10, 20), sticky="ew")
+        assets_path = Path(__file__).parent / "assets" / "frame1"
+        
+        # Ícone de Usuário
+        user_icon_image = ctk.CTkImage(Image.open(assets_path / "user_icon.png").resize((32, 32), Image.LANCZOS), size=(40, 40))
+        user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
+        user_button.pack(side="left", padx=10, pady=10)
+        
+        # --- Frame do Conteúdo Principal ---
+        # Este frame principal conterá o conteúdo e o espaçador
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.grid(row=1, column=0, sticky="nsew")
 
-    def update_gif(self):
-        if self.gif_frames:
-            pil_image_frame = self.gif_frames[self.current_frame]
-            ctk_image = ctk.CTkImage(light_image=pil_image_frame, 
-                                     dark_image=pil_image_frame, 
-                                     size=(375, 60)) # Ajusta o tamanho para o cabeçalho
-            self.gif_label.configure(image=ctk_image)
-            self.current_frame = (self.current_frame + 1) % len(self.gif_frames)
-            self.after(50, self.update_gif)
+        # --- Bloco de Conteúdo (Logo e Botões) ---
+        # Este é o frame que agrupa tudo o que queremos que suba
+        content_block_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        content_block_frame.pack(side="top", fill="x", pady=(50, 0)) # pady dá o espaçamento do topo
 
-# --- Run the application ---
+        # Logo Central
+        logo_completo_path = assets_path / "MyGeli.png"
+        original_logo_image = Image.open(logo_completo_path)
+        original_width, original_height = original_logo_image.size
+        target_width = 280
+        aspect_ratio = original_height / original_width
+        target_height = int(target_width * aspect_ratio)
+        resized_logo = original_logo_image.resize((target_width, target_height), Image.LANCZOS)
+        logo_image = ctk.CTkImage(light_image=resized_logo, size=(target_width, target_height))
+        ctk.CTkLabel(content_block_frame, image=logo_image, text="").pack(pady=(0, 30))
+
+        # Frame dos Botões
+        buttons_frame = ctk.CTkFrame(content_block_frame, fg_color=self.CARD_COLOR, corner_radius=12, border_color=self.CARD_BORDER_COLOR, border_width=1)
+        buttons_frame.pack(padx=30, fill="x")
+        buttons_frame.grid_columnconfigure(0, weight=1)
+
+        # Botões de Navegação
+        ctk.CTkButton(buttons_frame, text="FALAR COM GELI", command=lambda: abrir_gui("gui0.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
+        ctk.CTkButton(buttons_frame, text="VER RECEITAS", command=lambda: abrir_gui("gui2.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+        ctk.CTkButton(buttons_frame, text="GERENCIAR ESTOQUE", command=lambda: abrir_gui("gui3.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=2, column=0, padx=20, pady=10, sticky="ew")
+        ctk.CTkButton(buttons_frame, text="(GUI4)NÃO FUNCIONAL", command=lambda: abrir_gui("gui4.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=3, column=0, padx=20, pady=(10, 20), sticky="ew")
+
+# --- Execução da Aplicação ---
 if __name__ == "__main__":
-    app = App()
+    # Credenciais e conexão
+    db_host = "localhost"
+    db_name = "mygeli"
+    db_usuario = "foodyzeadm"
+    db_senha = "supfood0017admx"
+    
+    conexao_ativa = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+
+    app = App(db_connection=conexao_ativa)
     app.mainloop()
+
+    # Fecha a conexão ao sair da aplicação
+    if conexao_ativa and conexao_ativa.is_connected():
+        conexao_ativa.close()
+        print("Log: Conexão com o BD fechada ao finalizar o app.")
