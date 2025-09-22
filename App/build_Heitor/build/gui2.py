@@ -170,7 +170,6 @@ def rename_recipe(recipe_filepath: Path, parent_app):
         traceback.print_exc()
 
 def delete_recipe(recipe_filepath: Path, parent_app):
-    """Exclui um arquivo de receita com confirmação."""
     confirm = messagebox.askyesno(
         "Confirmar Exclusão",
         f"Tem certeza que deseja excluir a receita '{recipe_filepath.stem.replace('_', ' ')}'?\n\nEsta ação não pode ser desfeita.",
@@ -179,12 +178,14 @@ def delete_recipe(recipe_filepath: Path, parent_app):
     if confirm:
         try:
             os.remove(recipe_filepath)
-            populate_recipe_buttons(parent_app)
+            main_app = parent_app
+            while isinstance(main_app, tk.Toplevel):
+                main_app = main_app.master
+            populate_recipe_buttons(main_app)
         except Exception as e:
             messagebox.showerror("Erro ao Excluir", f"Ocorreu um erro: {e}", parent=parent_app)
 
 def toggle_favorite_status(recipe_filepath: Path, parent_app):
-    """Adiciona ou remove uma receita dos favoritos."""
     try:
         is_favorite = recipe_filepath.name.startswith(FAVORITE_PREFIX)
         new_name = recipe_filepath.name[len(FAVORITE_PREFIX):] if is_favorite else FAVORITE_PREFIX + recipe_filepath.name
@@ -209,54 +210,111 @@ def on_search_button_click():
         open_search_box(window)
 
 def display_selected_recipe(recipe_filepath: Path, parent_app):
-    """Abre uma nova janela Toplevel para exibir o conteúdo completo da receita."""
     try:
-        with open(recipe_filepath, "r", encoding="utf-8") as f:
-            recipe_content = f.read()
-        
-        recipe_name = extract_recipe_name_from_content(recipe_content)
+        ICONS_PATH = OUTPUT_PATH / "assets" / "geral"
 
+        def load_content(filepath):
+            with open(filepath, "r", encoding="utf-8") as f: content = f.read()
+            return content, extract_recipe_name_from_content(content)
+        
+        original_recipe_content, recipe_name = load_content(recipe_filepath)
+        current_filepath = recipe_filepath
+
+        star_on_img = load_tk_image(ICONS_PATH / "favorito_on.png", size=(24, 24))
+        star_off_img = load_tk_image(ICONS_PATH / "favorito_off.png", size=(24, 24))
+        trash_img = load_tk_image(ICONS_PATH / "lixeira.png", size=(24, 24))
+
+        # --- Criação e centralização da janela (lógica original) ---
         recipe_window = tk.Toplevel(parent_app)
         recipe_window.title(f"Receita: {recipe_name}")
-        popup_width, popup_height = 500, 630
-        recipe_window.geometry(f"{popup_width}x{popup_height}")
+        recipe_window.geometry("500x700")
         recipe_window.configure(bg="#FFFFFF")
-
-        parent_x, parent_y = parent_app.winfo_x(), parent_app.winfo_y()
-        parent_width, parent_height = parent_app.winfo_width(), parent_app.winfo_height()
-        center_x = parent_x + (parent_width // 2) - (popup_width // 2)
-        center_y = parent_y + (parent_height // 2) - (popup_height // 2)
+        parent_x, parent_y, w, h = parent_app.winfo_x(), parent_app.winfo_y(), parent_app.winfo_width(), parent_app.winfo_height()
+        center_x, center_y = parent_x + (w // 2) - 250, parent_y + (h // 2) - 315
         recipe_window.geometry(f"+{center_x}+{center_y}")
         recipe_window.attributes("-topmost", True)
+        
+        # --- UI: Cabeçalho com Título e Ícones ---
+        header_frame = ttk.Frame(recipe_window, style="White.TFrame", padding=(10, 10, 10, 5))
+        header_frame.pack(side="top", fill="x")
+        header_frame.grid_columnconfigure(0, weight=1)
+        recipe_title_label = ttk.Label(header_frame, text=recipe_name, font=parent_app.medium_font, background="white", anchor="w")
+        recipe_title_label.grid(row=0, column=0, sticky="ew")
 
-        text_frame = ttk.Frame(recipe_window, padding="10")
-        text_frame.pack(expand=True, fill="both", padx=10, pady=(10,0))
-
-        text_area = tk.Text(
-            text_frame, wrap="word", font=parent_app.small_font,
-            padx=10, pady=10, bg="#F0F0F0", fg="#333333",
-            relief="solid", borderwidth=1
-        )
-        text_area.insert("end", recipe_content)
+        # --- UI: Área de Texto (lógica original) ---
+        text_frame = ttk.Frame(recipe_window, padding="10", style="White.TFrame")
+        text_frame.pack(expand=True, fill="both")
+        text_area = tk.Text(text_frame, wrap="word", font=parent_app.small_font, bg="#F0F0F0", relief="solid", borderwidth=1, padx=10, pady=10)
+        text_area.insert("end", original_recipe_content)
         text_area.configure(state="disabled")
-        
         scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=text_area.yview)
-        text_area.configure(yscrollcommand=scrollbar.set)
-        
-        scrollbar.pack(side="right", fill="y")
-        text_area.pack(expand=True, fill="both")
+        text_area.configure(yscrollcommand=scrollbar.set); scrollbar.pack(side="right", fill="y"); text_area.pack(expand=True, fill="both")
 
-        close_button = ttk.Button(
-            recipe_window, text="Fechar Receita", command=recipe_window.destroy, style="Red.TButton"
-        )
-        close_button.pack(pady=(5, 10), ipady=4) 
+        # --- UI: Rodapé com botões de ação ---
+        button_frame = ttk.Frame(recipe_window, padding=(10, 5, 10, 10), style="White.TFrame")
+        button_frame.pack(fill="x", side="bottom")
+
+        # --- Funções internas de Lógica para os botões ---
+        def toggle_edit_mode():
+            if text_area.cget("state") == "disabled":
+                text_area.configure(state="normal", bg="#FFFFFF"); text_area.focus_set()
+                save_button.pack(side="left", expand=True, fill='x', padx=2)
+                edit_button.configure(text="Cancelar")
+                header_frame.pack_forget(); close_button.pack_forget()
+            else:
+                text_area.configure(state="disabled", bg="#F0F0F0")
+                text_area.delete("1.0", "end"); text_area.insert("end", original_recipe_content)
+                save_button.pack_forget()
+                edit_button.configure(text="Editar")
+                header_frame.pack(side="top", fill="x"); close_button.pack(side="right", expand=True, fill='x', padx=2)
         
-        recipe_window.transient(parent_app)
-        recipe_window.grab_set()
-        parent_app.wait_window(recipe_window)
+        def save_changes():
+            nonlocal original_recipe_content, current_filepath
+            new_content = text_area.get("1.0", "end-1c").strip()
+            with open(current_filepath, "w", encoding="utf-8") as f: f.write(new_content)
+            messagebox.showinfo("Sucesso", "Receita salva!", parent=recipe_window)
+            populate_recipe_buttons(parent_app)
+            toggle_edit_mode()
+        
+        def toggle_favorite_and_update():
+            nonlocal current_filepath
+            toggle_favorite_status(current_filepath, parent_app) 
+            new_name = current_filepath.name[len(FAVORITE_PREFIX):] if current_filepath.name.startswith(FAVORITE_PREFIX) else FAVORITE_PREFIX + current_filepath.name
+            current_filepath = current_filepath.with_name(new_name)
+            update_favorite_button_state()
+
+        def delete_and_close():
+            delete_recipe(current_filepath, recipe_window) 
+            if not current_filepath.exists(): recipe_window.destroy()
+
+        def update_favorite_button_state():
+            is_fav = current_filepath.name.startswith(FAVORITE_PREFIX)
+            favorite_button.configure(image=star_on_img if is_fav else star_off_img)
+        
+        # --- Estilos e Botões ---
+        style = ttk.Style(recipe_window)
+        style.configure("White.TFrame", background="white")
+        style.configure("Header.TButton", background="white", borderwidth=0, relief="flat")
+        style.map("Header.TButton", background=[('active', '#F0F0F0')])
+        
+        favorite_button = ttk.Button(header_frame, image=star_off_img, command=toggle_favorite_and_update, style="Header.TButton")
+        favorite_button.grid(row=0, column=1, sticky="e", padx=5)
+        delete_button = ttk.Button(header_frame, image=trash_img, command=delete_and_close, style="Header.TButton")
+        delete_button.grid(row=0, column=2, sticky="e")
+        
+        save_button = ttk.Button(button_frame, text="Salvar Alterações", command=save_changes, style="Accent.TButton")
+        edit_button = ttk.Button(button_frame, text="Editar", command=toggle_edit_mode)
+        close_button = ttk.Button(button_frame, text="Voltar", command=recipe_window.destroy, style="Red.TButton")
+        
+        edit_button.pack(side="left", expand=True, fill='x', padx=2)
+        close_button.pack(side="right", expand=True, fill='x', padx=2)
+        
+        update_favorite_button_state()
+        recipe_window.transient(parent_app); recipe_window.grab_set(); parent_app.wait_window(recipe_window)
 
     except Exception as e:
         messagebox.showerror("Erro ao Exibir Receita", f"Não foi possível carregar a receita:\n{e}", parent=parent_app)
+        traceback.print_exc()
 
 def _on_mousewheel(event, canvas):
     if sys.platform == "win32":
@@ -554,8 +612,8 @@ class App(tk.Tk):
         toolbar_frame.grid_propagate(False)
         toolbar_frame.grid_columnconfigure(1, weight=1)
 
-        self.back_button_image_tk = load_tk_image(OUTPUT_PATH / "seta.png", size=(24, 24))
-        self.search_button_image_tk = load_tk_image(OUTPUT_PATH / "lupa.png", size=(24, 24))
+        self.back_button_image_tk = load_tk_image(OUTPUT_PATH / "assets" / "geral" / "seta.png", size=(24, 24))
+        self.search_button_image_tk = load_tk_image(OUTPUT_PATH / "assets" / "geral" / "lupa.png", size=(24, 24))
 
         back_btn = ttk.Button(toolbar_frame, image=self.back_button_image_tk if self.back_button_image_tk else None, text="<" if not self.back_button_image_tk else "", command=on_back_button_click, style="Toolbar.TButton")
         back_btn.grid(row=0, column=0, padx=10, pady=10, sticky="w")
