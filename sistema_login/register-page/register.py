@@ -20,7 +20,6 @@ DB_CONFIG = {
 REMEMBER_DAYS = 30
 
 class UserRegistrationService:
-    # ... (O código da sua classe UserRegistrationService permanece o mesmo) ...
     def __init__(self, db_config):
         self.db_config = db_config
 
@@ -111,9 +110,6 @@ class UserRegistrationService:
         
         return result
 
-# --- MUDANÇAS PRINCIPAIS AQUI ---
-
-# Diga ao Flask para procurar templates (HTML) no diretório atual ('.')
 app = Flask(__name__, template_folder='.')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 service = UserRegistrationService(DB_CONFIG)
@@ -138,7 +134,6 @@ def register():
         telefone = request.form.get('telefone', '').strip()
         email = request.form.get('email', '').strip()
         senha = request.form.get('senha', '')
-        # Corrigido: o name no HTML é 'confirm-senha'
         confirm_senha = request.form.get('confirm-senha', '') 
         lembrar = request.form.get('remember') is not None
 
@@ -147,8 +142,8 @@ def register():
         session.clear()
         session['user_id'] = result["user_id"]
 
-        # Você precisará criar uma rota para '/general-page/index' em outro momento
-        response = make_response(redirect('/')) # Redirecionando para a home por enquanto
+        # Criar uma rota para '/general-page/index' em outro momento
+        response = make_response(redirect('/')) # Redirecionando para a home
         if lembrar:
             cookie_value = f"{result['remember_selector']}:{result['remember_authenticator']}"
             response.set_cookie(
@@ -163,7 +158,7 @@ def register():
         return response
     
     except ValueError as ve:
-        # Futuramente, você pode passar o erro para o template para exibi-lo na página
+        # Futuramente, passar o erro para o template para exibi-lo na página
         return str(ve), 400
     except RuntimeError as re:
         return str(re), 500
