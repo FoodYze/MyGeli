@@ -4,14 +4,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const loaderWrapper = document.getElementById('loader-wrapper');
   const progressBar = document.getElementById('progress-bar');
   const progressPercentage = document.getElementById('progress-percentage');
+  const loginContainer = document.querySelector('.login-container'); // Agora 'loginContainer' está definido
  
   let currentProgress = 0;
-  const totalSteps = 100;
-  const stepInterval = 20;
+  const stepInterval = 20; // Velocidade da barra de progresso
 
   function updateProgress() {
     if (currentProgress < 100) {
-      currentProgress += Math.random() * 5 + 1;
+      currentProgress += Math.random() * 5 + 1; // Incrementa o progresso de forma aleatória
       if (currentProgress > 100) {
         currentProgress = 100;
       }
@@ -22,47 +22,71 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(updateProgress, stepInterval);
     } else {
       // Quando o carregamento chega a 100%
-      loaderWrapper.classList.add('hidden');
-      document.body.classList.add('loaded');
-      loginContainer.classList.add('animated');
+      loaderWrapper.classList.add('hidden'); // Esconde o loader
+      document.body.classList.add('loaded'); // Adiciona classe ao body para possíveis transições no CSS
+      // Se houver uma animação CSS para 'animated' no .login-container, descomente a linha abaixo
+      // loginContainer.classList.add('animated'); 
     }
   }
 
-  updateProgress();
+  updateProgress(); // Inicia a animação da barra de progresso
  
-  // Tratamento do preenchimento do formulário
+  // Tratamento do preenchimento e validação do formulário
   const form = document.querySelector('.login-form');
   const passwordInput = document.getElementById('password');
-  const togglePassword = document.querySelector('.toggle-password');
+  const confirmPasswordInput = document.getElementById('password2'); // Campo de confirmação de senha
   const errorMessage = document.querySelector('.error-message');
-  const eyeOpen = document.querySelector('.eye-open');
-  const eyeClosed = document.querySelector('.eye-closed');
  
-  togglePassword.addEventListener('click', function() {
-    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-    passwordInput.setAttribute('type', type);
+  // Lógica para alternar visibilidade da senha para AMBOS os campos de senha
+  document.querySelectorAll('.toggle-password').forEach(button => {
+    button.addEventListener('click', function() {
+      // Encontra o input de senha dentro do mesmo .password-field ou .confirmPassword-field
+      const parentField = this.closest('.password-field') || this.closest('.confirmPassword-field');
+      const input = parentField.querySelector('input[type="password"], input[type="text"]');
+      
+      const eyeOpen = this.querySelector('.eye-open');
+      const eyeClosed = this.querySelector('.eye-closed');
    
-    if (type === 'text') {
-      eyeOpen.style.display = 'none';
-      eyeClosed.style.display = 'block';
-    } else {
-      eyeOpen.style.display = 'block';
-      eyeClosed.style.display = 'none';
-    }
+      const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+      input.setAttribute('type', type);
+   
+      // Alterna os ícones do olho
+      if (type === 'text') {
+        eyeOpen.style.display = 'none';
+        eyeClosed.style.display = 'block';
+      } else {
+        eyeOpen.style.display = 'block';
+        eyeClosed.style.display = 'none';
+      }
+    });
   });
  
   form.addEventListener('submit', function(e) {
     let valid = true;
    
+    // Limpa quaisquer estados de erro anteriores
     errorMessage.style.display = 'none';
     passwordInput.classList.remove('error');
+    confirmPasswordInput.classList.remove('error'); // Limpa a classe 'error' do campo de confirmação
    
-    if (passwordInput.value.length < 6) {
+    // 1. Validação de senhas coincidentes
+    if (passwordInput.value !== confirmPasswordInput.value) {
       valid = false;
       passwordInput.classList.add('error');
+      confirmPasswordInput.classList.add('error');
+      errorMessage.textContent = 'As senhas não coincidem!';
+      errorMessage.style.display = 'block';
+    }
+
+    // 2. Validação do comprimento da senha (só verifica se as senhas já não falharam na primeira validação)
+    if (valid && passwordInput.value.length < 6) {
+      valid = false;
+      passwordInput.classList.add('error');
+      errorMessage.textContent = 'Sua senha deve ter ao mínimo 6 caracteres!';
       errorMessage.style.display = 'block';
     }
    
+    // Se não for válido, impede o envio do formulário
     if (!valid) {
       e.preventDefault();
     }
