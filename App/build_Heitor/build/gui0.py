@@ -118,9 +118,9 @@ def formatar_receitas_para_ia(lista_titulos):
     return header + "\n".join(items_str_list)
 
 # --- INÍCIO: Configuração da API Gemini ---
-# IMPORTANTE: Substitua pela sua chave API. Considere usar variáveis de ambiente em produção.
+
 # Substitua 'SUA_CHAVE_API_AQUI' pela sua chave real.
-GOOGLE_API_KEY = 'SUA CHAVE AQUI' # Mantenha sua chave aqui se já configurada
+GOOGLE_API_KEY = 'Sua Chave Aqui'
 
 API_CONFIGURADA = False
 model = None
