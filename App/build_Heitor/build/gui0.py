@@ -10,6 +10,7 @@ import os
 import traceback # Para melhor depuração de erros
 import re # Adicionado para sanitizar nomes de arquivos
 from tkinter import messagebox
+import threading
 
 def conectar_mysql(host, database, user, password):
     """ Tenta conectar ao banco de dados MySQL. """
@@ -92,10 +93,34 @@ def formatar_estoque_para_ia(lista_estoque):
 
     return header + "\n".join(items_str_list)
 
+def buscar_titulos_receitas(conexao):
+    """Busca os títulos de todas as receitas no BD."""
+    if not conexao or not conexao.is_connected():
+        print("Log: Conexão com BD indisponível para buscar títulos de receitas.")
+        return []
+    try:
+        cursor = conexao.cursor()
+        cursor.execute("SELECT tituloreceita FROM receitas")
+        titulos = [item[0] for item in cursor.fetchall()]
+        cursor.close()
+        print(f"DEBUG: Encontrados {len(titulos)} títulos de receitas no BD.")
+        return titulos
+    except Error as e:
+        print(f"Erro ao buscar títulos de receitas do banco de dados: {e}")
+        return []
+
+def formatar_receitas_para_ia(lista_titulos):
+    """Converte a lista de títulos de receitas em uma string para a IA."""
+    if not lista_titulos:
+        return "" # Retorna string vazia se não houver receitas
+    header = "\n\nRECEITAS JÁ CRIADAS (evite sugerir estas novamente):\n"
+    items_str_list = [f"- {titulo}" for titulo in lista_titulos]
+    return header + "\n".join(items_str_list)
+
 # --- INÍCIO: Configuração da API Gemini ---
 # IMPORTANTE: Substitua pela sua chave API. Considere usar variáveis de ambiente em produção.
 # Substitua 'SUA_CHAVE_API_AQUI' pela sua chave real.
-GOOGLE_API_KEY = 'Sua Chave Api Aqui' # Mantenha sua chave aqui se já configurada
+GOOGLE_API_KEY = 'SUA CHAVE AQUI' # Mantenha sua chave aqui se já configurada
 
 API_CONFIGURADA = False
 model = None
@@ -146,7 +171,7 @@ else:
                         "[ESPAÇAMENTO]"
                         "Tempo: [Tempo de preparo]"
                         "Rendimento: [Número de porções]"
-                        "Dificuldade: [Fácil, Média ou Difícil]"
+                        "Dificuldade: [Fácil, Média ou Dificil]"
                         "[ESPAÇAMENTO]"
                         "INGREDIENTES:"
                         "[Quantidade] de [Ingrediente] (do estoque)"
@@ -332,7 +357,75 @@ class App(ctk.CTk):
             traceback.print_exc()
             # Adiciona mensagem na UI se a criação da pasta principal falhar na inicialização
             self.add_message(f"Alerta: Falha ao preparar pasta de receitas '{SAVED_RECIPES_DIR.name}'. Salvar pode falhar. Erro: {e}", "bot_error")
+        
+        # Sincroniza as receitas já existentes na pasta com o banco de dados
+        self._sincronizar_receitas_locais_com_banco()
 
+
+    def _sincronizar_receitas_locais_com_banco(self):
+        """Verifica a pasta saved_recipes na inicialização e salva no banco as receitas que ainda não existem."""
+        if not self.conexao or not self.conexao.is_connected():
+            print("AVISO: Sincronização de receitas locais cancelada (sem conexão com BD).")
+            return
+
+        if not SAVED_RECIPES_DIR.exists():
+            print(f"INFO: Pasta de receitas '{SAVED_RECIPES_DIR}' não encontrada. Nada a sincronizar.")
+            return
+
+        print("\n--- INICIANDO SINCRONIZAÇÃO DE RECEITAS LOCAIS COM O BANCO DE DADOS ---")
+        receitas_salvas_agora = 0
+        try:
+            # 1. Pega os títulos de todas as receitas que já estão no banco para evitar duplicatas
+            cursor = self.conexao.cursor()
+            cursor.execute("SELECT tituloreceita FROM receitas")
+            # Usa um set para uma verificação de existência muito mais rápida
+            receitas_no_banco = {row[0] for row in cursor.fetchall()}
+            
+            # 2. Itera sobre os arquivos .txt na pasta local
+            arquivos_receitas = [f for f in os.listdir(SAVED_RECIPES_DIR) if f.endswith('.txt')]
+            
+            id_usuario_padrao = 1 # Usuário padrão para associar a receita
+            
+            for nome_arquivo in arquivos_receitas:
+                try:
+                    caminho_completo = SAVED_RECIPES_DIR / nome_arquivo
+                    with open(caminho_completo, 'r', encoding='utf-8') as f:
+                        linhas = f.readlines()
+                        if not linhas:
+                            continue # Pula arquivos vazios
+                        
+                        titulo = linhas[0].strip()
+                        # Usa o conteúdo completo do arquivo como descrição
+                        descricao = "".join(linhas).strip() 
+                        
+                        # 3. Se o título do arquivo local NÃO ESTÁ no banco, insere
+                        if titulo and titulo not in receitas_no_banco:
+                            sql_insert_query = """
+                            INSERT INTO receitas (tituloreceita, descreceita, idusuario)
+                            VALUES (%s, %s, %s)
+                            """
+                            dados_receita = (titulo, descricao, id_usuario_padrao)
+                            cursor.execute(sql_insert_query, dados_receita)
+                            print(f"  - SINCRONIZADO: Receita '{titulo}' salva no banco.")
+                            receitas_salvas_agora += 1
+                except Exception as e:
+                    print(f"  - ERRO: Falha ao processar o arquivo '{nome_arquivo}' para sincronização: {e}")
+
+            # 4. Confirma (commita) todas as novas inserções de uma vez só no final
+            if receitas_salvas_agora > 0:
+                self.conexao.commit()
+                print(f"SUCESSO: Sincronização concluída. {receitas_salvas_agora} nova(s) receita(s) foram salvas no banco.")
+            else:
+                print("INFO: Sincronização concluída. Nenhuma nova receita encontrada para adicionar.")
+            
+            print("--- FIM DA SINCRONIZAÇÃO ---\n")
+
+        except Error as e:
+            print(f"ERRO DE BANCO DE DADOS durante a sincronização de receitas: {e}")
+        finally:
+            # Garante que o cursor seja fechado
+            if 'cursor' in locals() and cursor:
+                cursor.close()
 
     def _sanitize_filename(self, name: str) -> str:
         """Limpa e formata uma string para ser usada como nome de arquivo."""
@@ -389,7 +482,10 @@ class App(ctk.CTk):
         if sender == "bot_typing":
             self.typing_indicator_message = msg_widget
 
-        self.chat_frame.update_idletasks() # Garante que a interface seja atualizada
+        # Correção do Bug Visual: Força a atualização da janela principal (self)
+        # para recalcular os layouts antes de rolar. Isso evita que o balão de
+        # mensagem do usuário apareça "quebrado" temporariamente.
+        self.update_idletasks()
         self.chat_frame._parent_canvas.yview_moveto(1.0) # Rola para o final
 
     def show_typing_indicator(self):
@@ -430,7 +526,11 @@ class App(ctk.CTk):
 
         lista_estoque = buscar_estoque_do_bd(self.conexao)
         estoque_formatado_para_ia = formatar_estoque_para_ia(lista_estoque)
-        mensagem_completa_para_ia = f"{user_message}{estoque_formatado_para_ia}"
+
+        lista_titulos_receitas = buscar_titulos_receitas(self.conexao)
+        receitas_formatado_para_ia = formatar_receitas_para_ia(lista_titulos_receitas)
+
+        mensagem_completa_para_ia = f"{user_message}{estoque_formatado_para_ia}{receitas_formatado_para_ia}"
         print(f"\n--- DEBUG: Mensagem completa enviada para a API ---\n{mensagem_completa_para_ia}\n--- FIM DEBUG ---\n")
         resposta_bot = self.gerar_resposta_api(mensagem_completa_para_ia)
 
@@ -508,11 +608,43 @@ class App(ctk.CTk):
 
             # Feedback final para o usuário no chat
             if recipe_saved_successfully:
+                # A descrição completa é o próprio texto da resposta do bot.
+                self._salvar_receita_no_banco(titulo=recipe_title, descricao=resposta_bot)
                 self.after(200, lambda: self.add_message("Receita salva com sucesso! Você já pode conferi-la no menu de receitas.", "bot_info"))
             else:
                 final_ui_error = error_message_for_ui if error_message_for_ui else "Falha desconhecida ao salvar receita. Verifique o console."
                 self.after(200, lambda: self.add_message(final_ui_error, "bot_error"))
                 
+    def _salvar_receita_no_banco(self, titulo, descricao):
+        """Salva a receita gerada diretamente no banco de dados."""
+        if not self.conexao or not self.conexao.is_connected():
+            print("ERRO: Sem conexão com o BD para salvar a receita.")
+            self.add_message("Alerta: Não foi possível salvar a receita no banco de dados (sem conexão).", "bot_error")
+            return
+
+        try:
+            cursor = self.conexao.cursor()
+            # ID do usuário ao qual a receita será associada.
+            # No seu banco, o usuário com ID 1 é 'Marvin'.
+            id_usuario_padrao = 1
+
+            sql_insert_query = """
+            INSERT INTO receitas (tituloreceita, descreceita, idusuario)
+            VALUES (%s, %s, %s)
+            """
+            dados_receita = (titulo, descricao, id_usuario_padrao)
+
+            cursor.execute(sql_insert_query, dados_receita)
+            self.conexao.commit()
+            print(f"SUCESSO: Receita '{titulo}' salva no banco de dados.")
+
+        except Error as e:
+            print(f"ERRO de Banco de Dados ao salvar receita: {e}")
+            self.add_message(f"Alerta: Falha ao salvar a receita no banco de dados: {e}", "bot_error")
+        finally:
+            if 'cursor' in locals() and cursor:
+                cursor.close()
+
     def _parse_ingredients_from_recipe(self, recipe_text):
     # Padrão para encontrar QUALQUER linha que termine com "(do estoque)"
         pattern_linha_estoque = re.compile(r"^\s*(.*?)\s+\(do estoque\)", re.MULTILINE | re.IGNORECASE)
