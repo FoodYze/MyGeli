@@ -7,6 +7,9 @@ from PIL import Image, ImageTk
 import os
 import traceback
 import re
+import google.generativeai as genai
+import threading
+from gui0 import GOOGLE_API_KEY
 
 # --- Constantes e Configurações ---
 OUTPUT_PATH = Path(__file__).parent
@@ -14,8 +17,15 @@ RECIPE_FILE_PATH = OUTPUT_PATH / "latest_recipe.txt"
 SAVED_RECIPES_DIR = OUTPUT_PATH / "saved_recipes"
 ASSETS_PATH = OUTPUT_PATH / "assets" / "frame2"
 DOWNLOADS_BUILD_PATH = OUTPUT_PATH
+FAVORITE_PREFIX = "★_"
 
-FAVORITE_PREFIX = "★_" # Prefixo para identificar arquivos de receitas favoritas
+"""Chamada do Gemini para gerar instruções nutricionais"""
+try:
+    genai.configure(api_key=GOOGLE_API_KEY)
+    model = genai.GenerativeModel('gemini-2.5-flash')
+except Exception as e:
+    print(f"AVISO: Não foi possível configurar a API do Gemini. A função de nutrição estará desabilitada. Erro: {e}")
+    model = None
 
 # --- Variáveis Globais da UI ---
 recipe_buttons_canvas = None
@@ -43,7 +53,6 @@ def extract_recipe_name_from_content(content: str) -> str:
                 return stripped_line[len("receita de:"):].strip()
             if stripped_line.lower().startswith("nome:"):
                 return stripped_line[len("nome:"):].strip()
-            # Limita o nome extraído para evitar botões excessivamente longos
             return stripped_line[:50] + "..." if len(stripped_line) > 53 else stripped_line
     return "Receita Sem Título"
 
@@ -90,8 +99,6 @@ class LongPressHandler:
         if self.timer_id:
             self.widget.after_cancel(self.timer_id)
             self.timer_id = None
-        
-        # Se o long press não foi disparado, é um clique curto
         if not self.long_press_fired:
             self.on_short_click()
 
@@ -209,6 +216,128 @@ def on_search_button_click():
     if window:
         open_search_box(window)
 
+def show_nutritional_info(recipe_content: str, parent_app: tk.Tk):
+    """Função para buscar e exibir informações nutricionais da receita."""
+    if not model:
+        messagebox.showerror("API Não Configurada", "A chave de API para o Gemini não foi configurada corretamente. Verifique o console para mais detalhes.", parent=parent_app)
+        return
+        
+    loading_window = tk.Toplevel(parent_app)
+    loading_window.title("Aguarde")
+    loading_window.geometry("300x120")
+    loading_window.configure(bg="#FFFFFF")
+    loading_window.protocol("WM_DELETE_WINDOW", lambda: None)
+    parent_x, parent_y, w, h = parent_app.winfo_x(), parent_app.winfo_y(), parent_app.winfo_width(), parent_app.winfo_height()
+    center_x, center_y = parent_x + (w // 2) - 150, parent_y + (h // 2) - 60
+    loading_window.geometry(f"+{center_x}+{center_y}")
+    loading_window.transient(parent_app)
+    loading_window.grab_set()
+    loading_window.attributes("-topmost", True)
+    ttk.Label(loading_window, text="Gerando Instrução Nutricional...", font=parent_app.small_font, background="white").pack(pady=(15, 5))
+    style = ttk.Style(loading_window)
+    style.configure("Blue.Horizontal.TProgressbar", background='#0084FF')
+    progress_bar = ttk.Progressbar(
+        loading_window, 
+        mode='indeterminate', 
+        style="Blue.Horizontal.TProgressbar",
+        length=250
+    )
+    progress_bar.pack(pady=10, padx=15)
+    progress_bar.start(10)
+    loading_window.update()
+
+    def do_request():
+        try:
+            recipe_name_for_prompt = extract_recipe_name_from_content(recipe_content)
+            prompt = (
+                f"Analise a seguinte receita e forneça uma estimativa nutricional por porção. "
+                f"A resposta deve seguir esta estrutura EXATA, sem nenhuma palavra ou formatação adicional:\n\n"
+                f"Estimativa nutricional para\n"
+                f"\"{recipe_name_for_prompt}\":\n\n"
+                f"Calorias: [valor] kcal\n"
+                f"Proteínas: [valor] g\n"
+                f"Carboidratos: [valor] g\n"
+                f"Gorduras: [valor] g\n\n"
+                f"---------------\n"
+                f"Lembre-se que estes são valores aproximados e podem variar. Para um acompanhamento preciso, consulte um nutricionista.\n"
+                f"RECEITA A SER ANALISADA:\n{recipe_content}"
+            )
+            response = model.generate_content(prompt)        
+        except Exception as e:
+            response = None
+            error_message = f"Ocorreu um erro ao consultar as informações nutricionais:\n{e}"
+        
+        def on_complete():
+            progress_bar.stop()
+            loading_window.destroy()
+            if response:
+                show_nutritional_result(response.text, parent_app)
+            else:
+                messagebox.showerror("Erro de API", error_message, parent=parent_app)
+        parent_app.after(0, on_complete)
+    threading.Thread(target=do_request, daemon=True).start()
+
+
+def show_nutritional_result(result_text: str, parent_app: tk.Tk):
+    # --- Configurações Iniciais da Janela ---
+    result_window = tk.Toplevel(parent_app)
+    result_window.title("Informações Nutricionais (Estimativa)")
+    result_window.geometry("400x400")
+    result_window.configure(bg="#F5F5F5")
+    result_window.minsize(350, 300)
+    parent_x, parent_y, w, h = parent_app.winfo_x(), parent_app.winfo_y(), parent_app.winfo_width(), parent_app.winfo_height()
+    center_x, center_y = parent_x + (w // 2) - 200, parent_y + (h // 2) - 200
+    result_window.geometry(f"+{center_x}+{center_y}")
+    
+    #Configuração do Layout com Grid
+    result_window.grid_rowconfigure(1, weight=1)
+    result_window.grid_columnconfigure(0, weight=1)
+
+    #Toolbar Superior
+    toolbar_frame = ttk.Frame(result_window, height=60, style="Toolbar.TFrame")
+    toolbar_frame.grid(row=0, column=0, sticky="ew")
+    toolbar_frame.grid_propagate(False)
+    toolbar_frame.grid_columnconfigure(1, weight=1)
+
+    # Botão de Voltar (Seta)
+    back_arrow_img = load_tk_image(OUTPUT_PATH / "assets" / "geral" / "seta.png", size=(24, 24))
+    back_btn = ttk.Button(
+        toolbar_frame, 
+        image=back_arrow_img if back_arrow_img else None, 
+        text="<" if not back_arrow_img else "", 
+        command=result_window.destroy, 
+        style="Toolbar.TButton"
+    )
+    back_btn.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+    back_btn.image = back_arrow_img # Mantém referência à imagem
+
+    # Título na Toolbar
+    ttk.Label(
+        toolbar_frame, 
+        text="Informações Nutricionais", 
+        style="Toolbar.TLabel"
+    ).grid(row=0, column=1, pady=10, padx=10)
+
+
+    #Área de Conteúdo Estilizada
+    content_frame = ttk.Frame(result_window, padding="15", style="TFrame")
+    content_frame.grid(row=1, column=0, sticky="nsew")
+    info_label = ttk.Label(
+        content_frame, 
+        text=result_text,
+        font=parent_app.small_font,
+        wraplength=350,
+        justify="left"
+    )
+    info_label.pack(expand=True, fill="both", anchor="nw")
+
+
+    # --- CORREÇÃO DE FOCO ---
+    result_window.attributes("-topmost", True)
+    result_window.transient(parent_app)
+    result_window.grab_set()
+    parent_app.wait_window(result_window)
+
 def display_selected_recipe(recipe_filepath: Path, parent_app):
     try:
         ICONS_PATH = OUTPUT_PATH / "assets" / "geral"
@@ -223,6 +352,8 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
         star_on_img = load_tk_image(ICONS_PATH / "favorito_on.png", size=(24, 24))
         star_off_img = load_tk_image(ICONS_PATH / "favorito_off.png", size=(24, 24))
         trash_img = load_tk_image(ICONS_PATH / "lixeira.png", size=(24, 24))
+        nutri_img = load_tk_image(ICONS_PATH / "nutri.png", size=(24,24))
+
 
         # --- Criação e centralização da janela (lógica original) ---
         recipe_window = tk.Toplevel(parent_app)
@@ -233,17 +364,22 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
         center_x, center_y = parent_x + (w // 2) - 250, parent_y + (h // 2) - 315
         recipe_window.geometry(f"+{center_x}+{center_y}")
         recipe_window.attributes("-topmost", True)
+        recipe_window.grid_rowconfigure(1, weight=1)
+        recipe_window.grid_columnconfigure(0, weight=1)
         
         # --- UI: Cabeçalho com Título e Ícones ---
         header_frame = ttk.Frame(recipe_window, style="White.TFrame", padding=(10, 10, 10, 5))
-        header_frame.pack(side="top", fill="x")
+        header_frame.grid(row=0, column=0, sticky="ew")
         header_frame.grid_columnconfigure(0, weight=1)
         recipe_title_label = ttk.Label(header_frame, text=recipe_name, font=parent_app.medium_font, background="white", anchor="w")
         recipe_title_label.grid(row=0, column=0, sticky="ew")
+        #Botão de informações nutricionais
+        nutri_button = ttk.Button(header_frame, image=nutri_img, text="[i]" if not nutri_img else "", command=lambda: show_nutritional_info(text_area.get("1.0", "end"), parent_app), style="Header.TButton")
+        nutri_button.grid(row=0, column=1, sticky="e", padx=5)
 
         # --- UI: Área de Texto (lógica original) ---
         text_frame = ttk.Frame(recipe_window, padding="10", style="White.TFrame")
-        text_frame.pack(expand=True, fill="both")
+        text_frame.grid(row=1, column=0, sticky="nsew")
         text_area = tk.Text(text_frame, wrap="word", font=parent_app.small_font, bg="#F0F0F0", relief="solid", borderwidth=1, padx=10, pady=10)
         text_area.insert("end", original_recipe_content)
         text_area.configure(state="disabled")
@@ -252,7 +388,7 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
 
         # --- UI: Rodapé com botões de ação ---
         button_frame = ttk.Frame(recipe_window, padding=(10, 5, 10, 10), style="White.TFrame")
-        button_frame.pack(fill="x", side="bottom")
+        button_frame.grid(row=2, column=0, sticky="ew")
 
         # --- Funções internas de Lógica para os botões ---
         def toggle_edit_mode():
@@ -260,13 +396,17 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
                 text_area.configure(state="normal", bg="#FFFFFF"); text_area.focus_set()
                 save_button.pack(side="left", expand=True, fill='x', padx=2)
                 edit_button.configure(text="Cancelar")
-                header_frame.pack_forget(); close_button.pack_forget()
+                # CORREÇÃO: Esconde o frame usando grid
+                header_frame.grid_remove()
+                close_button.pack_forget()
             else:
                 text_area.configure(state="disabled", bg="#F0F0F0")
                 text_area.delete("1.0", "end"); text_area.insert("end", original_recipe_content)
                 save_button.pack_forget()
                 edit_button.configure(text="Editar")
-                header_frame.pack(side="top", fill="x"); close_button.pack(side="right", expand=True, fill='x', padx=2)
+                # CORREÇÃO: Mostra o frame de volta na sua posição original do grid
+                header_frame.grid()
+                close_button.pack(side="right", expand=True, fill='x', padx=2)
         
         def save_changes():
             nonlocal original_recipe_content, current_filepath
@@ -275,7 +415,16 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
             messagebox.showinfo("Sucesso", "Receita salva!", parent=recipe_window)
             populate_recipe_buttons(parent_app)
             toggle_edit_mode()
-        
+
+            def save_changes():
+                nonlocal original_recipe_content, current_filepath
+                new_content = text_area.get("1.0", "end-1c").strip()
+                original_recipe_content = new_content # <--- ADICIONE ESTA LINHA
+                with open(current_filepath, "w", encoding="utf-8") as f: f.write(new_content)
+                messagebox.showinfo("Sucesso", "Receita salva!", parent=recipe_window)
+                populate_recipe_buttons(parent_app)
+                toggle_edit_mode()
+                    
         def toggle_favorite_and_update():
             nonlocal current_filepath
             toggle_favorite_status(current_filepath, parent_app) 
@@ -298,9 +447,9 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
         style.map("Header.TButton", background=[('active', '#F0F0F0')])
         
         favorite_button = ttk.Button(header_frame, image=star_off_img, command=toggle_favorite_and_update, style="Header.TButton")
-        favorite_button.grid(row=0, column=1, sticky="e", padx=5)
+        favorite_button.grid(row=0, column=2, sticky="e", padx=5)
         delete_button = ttk.Button(header_frame, image=trash_img, command=delete_and_close, style="Header.TButton")
-        delete_button.grid(row=0, column=2, sticky="e")
+        delete_button.grid(row=0, column=3, sticky="e")
         
         save_button = ttk.Button(button_frame, text="Salvar Alterações", command=save_changes, style="Accent.TButton")
         edit_button = ttk.Button(button_frame, text="Editar", command=toggle_edit_mode)
