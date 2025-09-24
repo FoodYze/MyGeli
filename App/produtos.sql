@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Tempo de geração: 10/06/2025 às 14:55
+-- Tempo de geração: 16-Set-2025 às 16:44
 -- Versão do servidor: 10.4.32-MariaDB
--- Versão do PHP: 8.2.12
+-- versão do PHP: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -24,48 +24,56 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
--- Estrutura para tabela `produtos`
+-- Estrutura da tabela `produtos`
 --
 
 CREATE TABLE `produtos` (
-  `id_produto` int(3) UNSIGNED ZEROFILL NOT NULL,
-  `nome_produto` varchar(100) NOT NULL,
-  `quantidade_produto` int(6) UNSIGNED NOT NULL,
-  `tipo_volume` varchar(12) NOT NULL
+  `id_produto` int(11) NOT NULL,
+  `nome_produto` varchar(255) NOT NULL,
+  `quantidade_produto` decimal(10,2) NOT NULL,
+  `tipo_volume` varchar(50) NOT NULL,
+  `valor_energetico_kcal` decimal(10,2) DEFAULT NULL,
+  `acucares_totais_g` decimal(10,2) DEFAULT NULL,
+  `acucares_adicionados_g` decimal(10,2) DEFAULT NULL,
+  `carboidratos_g` decimal(10,2) DEFAULT NULL,
+  `proteinas_g` decimal(10,2) DEFAULT NULL,
+  `gorduras_totais_g` decimal(10,2) DEFAULT NULL,
+  `gorduras_saturadas_g` decimal(10,2) DEFAULT NULL,
+  `gorduras_trans_g` decimal(10,2) DEFAULT NULL,
+  `fibra_alimentar_g` decimal(10,2) DEFAULT NULL,
+  `sodio_g` decimal(10,2) DEFAULT NULL,
+  `data_criacao` timestamp NOT NULL DEFAULT current_timestamp(),
+  `data_modificacao` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Despejando dados para a tabela `produtos`
+-- Extraindo dados da tabela `produtos`
 --
 
-INSERT INTO `produtos` (`id_produto`, `nome_produto`, `quantidade_produto`, `tipo_volume`) VALUES
-(004, 'Ovo', 12, 'Unidades'),
-(005, 'Farinha', 2, 'Gramas'),
-(006, 'Carne', 900, 'Gramas'),
-(007, 'Batata', 3, 'Unidades'),
-(008, 'Chocolate', 200, 'Gramas'),
-(009, 'Leite', 2, 'mililitros'),
-(010, 'Cenoura', 2, 'Unidades');
+INSERT INTO `produtos` (`id_produto`, `nome_produto`, `quantidade_produto`, `tipo_volume`, `valor_energetico_kcal`, `acucares_totais_g`, `acucares_adicionados_g`, `carboidratos_g`, `proteinas_g`, `gorduras_totais_g`, `gorduras_saturadas_g`, `gorduras_trans_g`, `fibra_alimentar_g`, `sodio_g`, `data_criacao`, `data_modificacao`) VALUES
+(1, 'Maçã', 5.00, 'Unidades', 52.00, NULL, NULL, 14.00, 0.30, 0.20, NULL, NULL, NULL, 1.00, '2025-09-16 14:36:04', '2025-09-16 14:36:04'),
+(2, 'Arroz', 1000.00, 'Gramas', 130.00, NULL, NULL, 28.00, 2.70, 0.30, NULL, NULL, NULL, 1.00, '2025-09-16 14:36:04', '2025-09-16 14:36:04');
 
 --
 -- Índices para tabelas despejadas
 --
 
 --
--- Índices de tabela `produtos`
+-- Índices para tabela `produtos`
 --
 ALTER TABLE `produtos`
-  ADD PRIMARY KEY (`id_produto`);
+  ADD PRIMARY KEY (`id_produto`),
+  ADD UNIQUE KEY `nome_produto` (`nome_produto`);
 
 --
--- AUTO_INCREMENT para tabelas despejadas
+-- AUTO_INCREMENT de tabelas despejadas
 --
 
 --
 -- AUTO_INCREMENT de tabela `produtos`
 --
 ALTER TABLE `produtos`
-  MODIFY `id_produto` int(3) UNSIGNED ZEROFILL NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id_produto` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
