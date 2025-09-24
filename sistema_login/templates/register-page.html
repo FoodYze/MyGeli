@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Caminho direto para o arquivo CSS, já que está no mesmo diretório -->
-  <link rel="stylesheet" href="style.css">
+  <!-- Caminho relativo corrigido para a pasta de CSS/JS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='register-page/style.css') }}">
   <link rel="icon" href="data:image/x-icon,;">
   <title>Registrar | MyGeli</title>
 </head>
@@ -21,6 +21,7 @@
     </div>
   </div>
  
+  <!-- Suas colunas e divs de design -->
   <div class="coluna1">
     <div class="bar1fra-12"></div>
     <div class="bar1for-12"></div>
@@ -46,7 +47,8 @@
         <h1>Cadastrar-se</h1>
         <p>Preencha as informações abaixo para criar sua conta</p>
       </div>
-      <form class="login-form" action="/register" method="post">
+      <!-- Action agora aponta para a rota Flask '/register' -->
+      <form class="login-form" action="{{ url_for('register') }}" method="post">
         <div class="form-group">
           <label for="username">Nome completo</label>
           <div class="nome-field">
@@ -80,7 +82,6 @@
         <div class="form-group">
           <label for="password2">Confirmar senha</label>
           <div class="confirmPassword-field">
-            <!-- Adicionado o atributo name="confirm-senha" para envio ao servidor -->
             <input type="password" id="password2" name="confirm-senha" required> 
             <button type="button" class="toggle-password" aria-label="Toggle password visibility">
               <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
@@ -103,7 +104,7 @@
       </form>
     </div>
 
-  <!-- Caminho direto para o arquivo JS, já que está no mesmo diretório -->
-  <script src="script.js"></script>
+  <!-- Caminho relativo corrigido para a pasta de CSS/JS -->
+  <script src="{{ url_for('static', filename='register-page/script.js') }}"></script>
 </body>
 </html>

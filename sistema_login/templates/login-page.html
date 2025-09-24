@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="style.css">
+  <!-- Caminho relativo corrigido para a pasta de CSS/JS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='login-page/style.css') }}">
   <link rel="icon" href="data:image/x-icon,;">
   <title>Login | MyGeli</title>
 </head>
@@ -20,6 +21,7 @@
     </div>
   </div>
   
+  <!-- Suas colunas e divs de design -->
   <div class="coluna1">
     <div class="bar1fra-12"></div>
     <div class="bar1for-12"></div>
@@ -45,7 +47,8 @@
         <h1>Bem vindo(a) de volta!</h1>
         <p>Entre com as credenciais para acessar sua conta</p>
       </div>
-      <form class="login-form" action="" method="post">
+      <!-- Action agora aponta para a rota Flask '/login' -->
+      <form class="login-form" action="{{ url_for('login') }}" method="post">
         <div class="form-group">
           <label for="username">E-mail</label>
           <div class="email-field">
@@ -76,11 +79,13 @@
         </div>
         <button type="submit" class="login-button" name="login">Login</button>
         <div class="register-link">
-          <p>Não tem uma conta? <a href="#">Crie uma</a></p>
+          <!-- Link corrigido para a rota Flask '/register' -->
+          <p>Não tem uma conta? <a href="{{ url_for('register') }}">Crie uma</a></p>
         </div>
       </form>
     </div>
 
-  <script src="script.js"></script>
+  <!-- Caminho relativo corrigido para a pasta de CSS/JS -->
+  <script src="{{ url_for('static', filename='login-page/script.js') }}"></script>
 </body>
 </html>
