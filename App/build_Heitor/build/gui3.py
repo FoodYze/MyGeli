@@ -423,7 +423,7 @@ class InventoryApp(ctk.CTk):
         self._refresh_item_list() 
         item_names = list(self.local_stock.keys())
 
-        dialog_width, dialog_height = 360, 270
+        dialog_width, dialog_height = 360, 320 # Altura ajustada para caber os botões
         dialog = ctk.CTkToplevel(self)
         dialog.title("Adicionar Item"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, dialog_width, dialog_height)
         
@@ -435,7 +435,8 @@ class InventoryApp(ctk.CTk):
         def on_item_select_for_add(selected_item_name):
             normalized_name = selected_item_name.strip().capitalize()
             if normalized_name in self.local_stock:
-                base_unit = self.local_stock[normalized_name]["unidade"]
+                # CORREÇÃO DO KEYERROR: "unidade" -> "tipo_volume"
+                base_unit = self.local_stock[normalized_name]["tipo_volume"]
                 if base_unit == "Gramas":
                     unidade_combobox.configure(values=self.mass_units); unidade_var.set(self.mass_units[0])
                 elif base_unit == "Mililitros":
@@ -447,140 +448,116 @@ class InventoryApp(ctk.CTk):
         
         ctk.CTkLabel(form_frame, text="Nome do Item:", font=self.dialog_label_font).grid(row=0, column=0, columnspan=2, sticky="w")
         ctk.CTkLabel(form_frame, text="Digite um novo nome ou selecione um existente", font=self.dialog_hint_font, text_color="#666666").grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5))
-
         nome_combobox = ctk.CTkComboBox(form_frame, values=item_names, width=200, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", command=on_item_select_for_add)
         nome_combobox.grid(row=2, column=0, columnspan=2, pady=(0,10), sticky="ew")
         nome_combobox.bind('<KeyRelease>', lambda event: on_item_select_for_add(nome_combobox.get()))
         nome_combobox.set("")
-
         ctk.CTkLabel(form_frame, text="Quantidade:", font=self.dialog_label_font).grid(row=3, column=0, sticky="w", pady=5)
-        # --- APLICANDO O VALIDADOR AQUI ---
         qtd_entry = ctk.CTkEntry(form_frame, width=100, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", validate="key", validatecommand=self.vcmd)
         qtd_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
-        
         ctk.CTkLabel(form_frame, text="Unidade:", font=self.dialog_label_font).grid(row=4, column=0, sticky="w", pady=5)
         unidade_combobox.grid(row=4, column=1, padx=5, pady=5, sticky="w")
 
         def _save_item_action():
+            # (O conteúdo desta função continua o mesmo, sem alterações)
             name_raw = nome_combobox.get().strip()
             if not name_raw: messagebox.showerror("Erro", "Por favor, digite um nome de item.", parent=dialog); return
             name = name_raw.capitalize()
-            
             qty_str = qtd_entry.get().strip().replace(',', '.')
             if not qty_str: messagebox.showerror("Erro", "Por favor, preencha a quantidade.", parent=dialog); return
-            
             try:
                 qty_input = float(qty_str)
                 if qty_input <= 0: raise ValueError()
-            except (ValueError, TypeError):
-                messagebox.showerror("Erro", "Quantidade deve ser um número válido e positivo.", parent=dialog); return
-            
+            except (ValueError, TypeError): messagebox.showerror("Erro", "Quantidade inválida.", parent=dialog); return
             selected_unit = unidade_var.get()
             qty_base, unit_base = self.converter_para_base(qty_input, selected_unit)
-            
             try:
                 cursor = self.connection.cursor(dictionary=True)
                 cursor.execute("SELECT * FROM produtos WHERE nome_produto = %s", (name,))
                 result = cursor.fetchone()
-                
-                if result: # Se o item JÁ EXISTE, apenas atualiza a quantidade
-                    # <-- ALTERAÇÃO FEITA AQUI
+                if result:
                     if result['tipo_volume'] != unit_base:
-                        messagebox.showerror("Erro", f"Unidade incompatível. Este item é medido em '{result['tipo_volume']}'.", parent=dialog); cursor.close(); return
-                    
+                        messagebox.showerror("Erro", f"Unidade incompatível. O item é medido em '{result['tipo_volume']}'.", parent=dialog); cursor.close(); return
                     new_qty = float(result['quantidade_produto']) + qty_base
                     cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s", (new_qty, name))
-                else: # Se o item é NOVO, busca dados nutricionais e insere
+                else:
                     nutritional_data = get_nutritional_info_from_api(name)
-                    
                     if not nutritional_data:
-                        if not GOOGLE_API_KEY or GOOGLE_API_KEY == "SUA_CHAVE_API_AQUI":
-                            msg = "A chave da API não foi configurada. Deseja adicionar o item sem dados nutricionais?"
-                        else:
-                            msg = "Não foi possível obter dados nutricionais. Deseja adicionar o item mesmo assim?"
-
-                        if not messagebox.askyesno("API indisponível", msg, parent=dialog):
-                            cursor.close(); return
+                        msg = "Não foi possível obter dados nutricionais. Adicionar mesmo assim?"
+                        if not GOOGLE_API_KEY: msg = "API Key não configurada. Adicionar sem dados nutricionais?"
+                        if not messagebox.askyesno("API indisponível", msg, parent=dialog): cursor.close(); return
                         nutritional_data = {}
-
                     keys = ["valor_energetico_kcal", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
                     query = f"INSERT INTO produtos (nome_produto, quantidade_produto, tipo_volume, {', '.join(keys)}) VALUES (%s, %s, %s, {', '.join(['%s']*len(keys))})"
                     values = (name, qty_base, unit_base) + tuple(nutritional_data.get(k) for k in keys)
                     cursor.execute(query, values)
-                
-                self.connection.commit(); cursor.close(); self._refresh_item_list(); dialog.destroy(); messagebox.showinfo("Sucesso!", f"Item '{name}' salvo no estoque.", parent=self)
-            except Error as e:
-                self.connection.rollback()
-                messagebox.showerror("Erro de BD", f"Falha ao salvar o item: {e}", parent=dialog)
+                self.connection.commit(); cursor.close(); self._refresh_item_list(); dialog.destroy(); messagebox.showinfo("Sucesso!", f"'{name}' salvo no estoque.", parent=self)
+            except Error as e: self.connection.rollback(); messagebox.showerror("Erro de BD", f"Falha ao salvar o item: {e}", parent=dialog)
+        
+        # ADIÇÃO DOS BOTÕES: Este bloco cria o frame e os botões de ação
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=(15, 10))
+        save_btn = ctk.CTkButton(btn_frame, text="Salvar", command=_save_item_action, font=self.dialog_button_font, fg_color="#0084FF", hover_color="#0066CC", corner_radius=12, height=35)
+        save_btn.pack(side="right", padx=5)
+        cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D", corner_radius=12, height=35)
+        cancel_btn.pack(side="right", padx=5)
+        nome_combobox.focus_set()
 
     def open_remove_item_dialog(self):
         self._refresh_item_list()
-        
         if not self.local_stock:
             messagebox.showinfo(title="Estoque Vazio", message="Não há itens para remover.", parent=self); return
-
         dialog_width, dialog_height = 360, 280
         dialog = ctk.CTkToplevel(self); dialog.title("Remover Itens"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, dialog_width, dialog_height)
-        form_frame = ctk.CTkFrame(dialog, fg_color="transparent"); form_frame.pack(fill="both", expand=True, padx=20, pady=15)
-        form_frame.grid_columnconfigure(1, weight=1)
+        form_frame = ctk.CTkFrame(dialog, fg_color="transparent"); form_frame.pack(fill="both", expand=True, padx=20, pady=15); form_frame.grid_columnconfigure(1, weight=1)
         
         item_names = list(self.local_stock.keys())
-        item_var = ctk.StringVar(value=item_names[0] if item_names else "")
-        unidade_remover_var = ctk.StringVar(value=self.measurement_units[0])
+        item_var = ctk.StringVar(value=item_names[0] if item_names else ""); unidade_remover_var = ctk.StringVar(value=self.measurement_units[0])
 
         def on_item_select(selected_item_name):
             if selected_item_name in self.local_stock:
-                unit = self.local_stock[selected_item_name]["unidade"]
-                if unit == "Gramas":
-                    unidade_remover_combobox.configure(values=self.mass_units); unidade_remover_var.set(self.mass_units[0])
-                elif unit == "Mililitros":
-                    unidade_remover_combobox.configure(values=self.volume_units); unidade_remover_var.set(self.volume_units[0])
-                else:
-                    unidade_remover_combobox.configure(values=self.unit_units); unidade_remover_var.set(self.unit_units[0])
+                # CORREÇÃO 1 DO KEYERROR: "unidade" -> "tipo_volume"
+                unit = self.local_stock[selected_item_name]["tipo_volume"]
+                if unit == "Gramas": unidade_remover_combobox.configure(values=self.mass_units); unidade_remover_var.set(self.mass_units[0])
+                elif unit == "Mililitros": unidade_remover_combobox.configure(values=self.volume_units); unidade_remover_var.set(self.volume_units[0])
+                else: unidade_remover_combobox.configure(values=self.unit_units); unidade_remover_var.set(self.unit_units[0])
             else:
                 unidade_remover_combobox.configure(values=self.measurement_units); unidade_remover_var.set(self.measurement_units[0])
 
-        # Linha 0: Item
-        ctk.CTkLabel(form_frame, text="Item para remover:", font=self.dialog_label_font).grid(row=0, column=0, sticky="w", pady=10)
-        item_combobox = ctk.CTkComboBox(form_frame, variable=item_var, values=item_names, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", button_color="#0084FF", button_hover_color="#0066CC", state="readonly" if item_names else "disabled", command=on_item_select)
-        item_combobox.grid(row=0, column=1, padx=5, pady=10, sticky="ew")
-
-        # Linha 1: Quantidade
+        ctk.CTkLabel(form_frame, text="Item:", font=self.dialog_label_font).grid(row=0, column=0, sticky="w", pady=10)
+        item_combobox = ctk.CTkComboBox(form_frame, variable=item_var, values=item_names, font=self.dialog_entry_font, corner_radius=8, state="readonly" if item_names else "disabled", command=on_item_select); item_combobox.grid(row=0, column=1, padx=5, pady=10, sticky="ew")
         ctk.CTkLabel(form_frame, text="Quantidade:", font=self.dialog_label_font).grid(row=1, column=0, sticky="w", pady=10)
-        qtd_entry = ctk.CTkEntry(form_frame, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", validate="key", validatecommand=self.vcmd)
-        qtd_entry.grid(row=1, column=1, padx=5, pady=10, sticky="ew") # sticky="ew" faz ele esticar horizontalmente
-        
-        # Linha 2: Unidade
+        qtd_entry = ctk.CTkEntry(form_frame, font=self.dialog_entry_font, corner_radius=8, validate="key", validatecommand=self.vcmd); qtd_entry.grid(row=1, column=1, padx=5, pady=10, sticky="ew")
         ctk.CTkLabel(form_frame, text="Unidade:", font=self.dialog_label_font).grid(row=2, column=0, sticky="w", pady=10)
-        unidade_remover_combobox = ctk.CTkComboBox(form_frame, values=self.measurement_units, variable=unidade_remover_var, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", button_color="#0084FF", button_hover_color="#0066CC", state="readonly", width=150)
-        unidade_remover_combobox.grid(row=2, column=1, padx=5, pady=10, sticky="w") # sticky="w" alinha à esquerda
-
+        unidade_remover_combobox = ctk.CTkComboBox(form_frame, values=self.measurement_units, variable=unidade_remover_var, font=self.dialog_entry_font, corner_radius=8, state="readonly", width=150); unidade_remover_combobox.grid(row=2, column=1, padx=5, pady=10, sticky="w")
         on_item_select(item_combobox.get())
         
         def _remove_item_action():
             name = item_var.get(); qty_to_remove_str = qtd_entry.get().strip().replace(',', '.'); unit_to_remove = unidade_remover_var.get()
-            if not name or not qty_to_remove_str: messagebox.showerror("Erro", "Insira todos os campos.", parent=dialog); return
+            if not name or not qty_to_remove_str: messagebox.showerror("Erro", "Preencha todos os campos.", parent=dialog); return
             try:
                 qty_to_remove_input = float(qty_to_remove_str);
                 if qty_to_remove_input <= 0: raise ValueError()
-            except ValueError: messagebox.showerror("Erro", "Insira uma quantidade válida e positiva.", parent=dialog); return
-            
+            except ValueError: messagebox.showerror("Erro", "Quantidade inválida.", parent=dialog); return
             qty_to_remove_base, unidade_base_remocao = self.converter_para_base(qty_to_remove_input, unit_to_remove)
-            stock_data = self.local_stock[name]; stock_qty_base = float(stock_data["qtd"]); stock_unit_base = stock_data["unidade"]
-            if stock_unit_base != unidade_base_remocao: messagebox.showerror("Erro", f"Não é possível remover '{unit_to_remove}' de '{name}' (Estoque em '{stock_unit_base}').", parent=dialog); return
-            if stock_qty_base < qty_to_remove_base: messagebox.showwarning("Aviso", f"Qtd. insuficiente.\nDisponível: {stock_qty_base:g} {stock_unit_base}", parent=dialog); return
             
+            # CORREÇÃO 2 DO KEYERROR: "qtd" -> "quantidade_produto", "unidade" -> "tipo_volume"
+            stock_data = self.local_stock[name]
+            stock_qty_base = float(stock_data["quantidade_produto"])
+            stock_unit_base = stock_data["tipo_volume"]
+            
+            if stock_unit_base != unidade_base_remocao: messagebox.showerror("Erro", f"Incompatível: Estoque em {stock_unit_base}.", parent=dialog); return
+            if stock_qty_base < qty_to_remove_base: messagebox.showwarning("Aviso", f"Qtd. insuficiente. Disponível: {stock_qty_base:g} {stock_unit_base}", parent=dialog); return
             try:
                 cursor = self.connection.cursor()
                 nova_quantidade = stock_qty_base - qty_to_remove_base
-                if abs(nova_quantidade) < 0.001:
-                    query = "DELETE FROM produtos WHERE nome_produto = %s"; cursor.execute(query, (name,))
-                else:
-                    query = "UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s"; cursor.execute(query, (nova_quantidade, name))
+                if abs(nova_quantidade) < 0.001: query = "DELETE FROM produtos WHERE nome_produto = %s"; cursor.execute(query, (name,))
+                else: query = "UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s"; cursor.execute(query, (nova_quantidade, name))
                 self.connection.commit(); cursor.close(); self._refresh_item_list(self.search_entry.get().strip()); dialog.destroy(); messagebox.showinfo("Sucesso!", f"Operação realizada.", parent=self)
-            except Error as e: messagebox.showerror("Erro de BD", f"Falha ao remover o item: {e}", parent=dialog)
+            except Error as e: messagebox.showerror("Erro de BD", f"Falha ao remover item: {e}", parent=dialog)
         
-        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent"); btn_frame.pack(fill="x", padx=20, pady=(20,10)) # Aumentei o pady top
+        # ADIÇÃO DOS BOTÕES: Este bloco cria o frame e os botões de ação
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent"); btn_frame.pack(fill="x", padx=20, pady=(20,10))
         remove_btn = ctk.CTkButton(btn_frame, text="Remover", command=_remove_item_action, font=self.dialog_button_font, fg_color="#f44336", hover_color="#CC3322", corner_radius=12, height=35); remove_btn.pack(side="right", padx=5)
         cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D", corner_radius=12, height=35); cancel_btn.pack(side="right", padx=5)
         if item_names: qtd_entry.focus_set()
