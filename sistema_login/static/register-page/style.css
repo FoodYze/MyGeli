@@ -195,6 +195,32 @@ body.loaded {
   padding: 2rem;
   border: 3px solid #159A9C;
   z-index: 2;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Estilo da barra de rolagem geral (container) */
+.login-container::-webkit-scrollbar {
+  width: 8px; /* Largura da barra de rolagem vertical */
+  opacity: 50%;
+}
+
+/* Estilo do trilho (a parte de fundo da barra) */
+.login-container::-webkit-scrollbar-track {
+  background: #f1f1f1; /* Cor de fundo */
+  border-radius: 10px; /* Borda arredondada */
+}
+
+/* Estilo do "thumb" (o elemento que você arrasta) */
+.login-container::-webkit-scrollbar-thumb {
+  background: #888; /* Cor do thumb */
+  border-radius: 10px; /* Borda arredondada */
+  border: 2px solid #f1f1f1; /* Para dar um espaçamento discreto */
+}
+
+/* Estilo do thumb quando o mouse está sobre ele */
+.login-container::-webkit-scrollbar-thumb:hover {
+  background: #555; /* Cor mais escura no hover */
 }
 
 .login-container.animated {
@@ -348,6 +374,23 @@ body.loaded {
 
 .login-button:active{
   transform: scale(0.98);
+}
+
+.termos{
+  position: fixed;
+  display: none;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background-color: #fff;
+  padding: 2rem;
+  border: 3px solid #159A9C;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
+  z-index: 10000; 
 }
 
 @media (max-width: 480px) {
