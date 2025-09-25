@@ -393,6 +393,40 @@ body.loaded {
   z-index: 10000; 
 }
 
+/* Estilo da barra de rolagem geral (container) */
+.termos::-webkit-scrollbar {
+  width: 8px; /* Largura da barra de rolagem vertical */
+  opacity: 50%;
+}
+
+/* Estilo do trilho (a parte de fundo da barra) */
+.termos::-webkit-scrollbar-track {
+  background: #f1f1f1; /* Cor de fundo */
+  border-radius: 10px; /* Borda arredondada */
+}
+
+/* Estilo do "thumb" (o elemento que você arrasta) */
+.termos::-webkit-scrollbar-thumb {
+  background: #888; /* Cor do thumb */
+  border-radius: 10px; /* Borda arredondada */
+  border: 2px solid #f1f1f1; /* Para dar um espaçamento discreto */
+}
+
+/* Estilo do thumb quando o mouse está sobre ele */
+.termos::-webkit-scrollbar-thumb:hover {
+  background: #555; /* Cor mais escura no hover */
+}
+
+#fechar_termos {
+  position: absolute;
+  display: flex;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #159a9c;
+}
+
 @media (max-width: 480px) {
   .login-container{
     padding: 1.5rem;

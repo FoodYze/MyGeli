@@ -6,15 +6,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const progressPercentage = document.getElementById('progress-percentage');
   const loginContainer = document.querySelector('.login-container'); // Agora 'loginContainer' está definido
   const linkTermos = document.getElementById('link-termos');
+  const btnFecharTermos = document.getElementById('fechar_termos');
   const termosDiv = document.querySelector('.termos');
  
   linkTermos.addEventListener('click', (event) => {
-  // Impede o link de recarregar a página (comportamento padrão de <a>)
-  event.preventDefault(); 
+    // Impede o link de recarregar a página (comportamento padrão de <a>)
+    event.preventDefault(); 
 
-  // Mostra a div dos termos
-  termosDiv.style.display = 'block';
-});
+    // Mostra a div dos termos
+    termosDiv.style.display = 'block';
+  });
+
+  btnFecharTermos.addEventListener('click', (event) => {
+    event.preventDefault();
+
+    termosDiv.style.display = 'none';
+  });
   
   let currentProgress = 0;
   const stepInterval = 20; // Velocidade da barra de progresso
