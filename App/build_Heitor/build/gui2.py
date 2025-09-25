@@ -250,22 +250,22 @@ def show_nutritional_info(recipe_content: str, parent_app: tk.Tk):
         try:
             recipe_name_for_prompt = extract_recipe_name_from_content(recipe_content)
             prompt = (
-                f"Analise a seguinte receita e forneça uma estimativa nutricional por porção. "
-                f"A resposta deve seguir esta estrutura EXATA, sem nenhuma palavra ou formatação adicional:\n\n"
-                f"Estimativa nutricional para\n"
-                f"\"{recipe_name_for_prompt}\":\n\n"
-                f"Calorias: [valor] kcal\n"
-                f"Proteínas: [valor] g\n"
-                f"Carboidratos: [valor] g\n"
-                f"Gorduras: [valor] g\n\n"
-                f"---------------\n"
-                f"Lembre-se que estes são valores aproximados e podem variar. Para um acompanhamento preciso, consulte um nutricionista.\n"
-                f"RECEITA A SER ANALISADA:\n{recipe_content}"
-            )
+                "Analise a seguinte receita e forneça uma estimativa nutricional por porção."
+                "A resposta deve seguir esta estrutura EXATA, sem nenhuma palavra ou formatação adicional:\n\n"
+                "Estimativa nutricional para:\n"
+                "\{recipe_name_for_prompt}\:\n\n"
+                "Calorias: [valor] kcal\n"
+                "Proteínas: [valor] g\n"
+                "Carboidratos: [valor] g\n"
+                "Gorduras: [valor] g\n\n"
+                "------------------------------------\n"
+                "Lembre-se que estes são valores aproximados e podem variar. Para um acompanhamento preciso, consulte um nutricionista.\n"
+                "RECEITA A SER ANALISADA:\n{recipe_content}"
+        )
             response = model.generate_content(prompt)        
         except Exception as e:
             response = None
-            error_message = f"Ocorreu um erro ao consultar as informações nutricionais:\n{e}"
+            error_message = "Ocorreu um erro ao consultar as informações nutricionais:\n{e}"
         
         def on_complete():
             progress_bar.stop()
