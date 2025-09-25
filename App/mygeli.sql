@@ -54,8 +54,20 @@ INSERT INTO `login_tokens` (`token_id`, `user_id`, `selector`, `hashed_token`, `
 CREATE TABLE `produtos` (
   `id_produto` int(3) UNSIGNED ZEROFILL NOT NULL,
   `nome_produto` varchar(100) NOT NULL,
-  `quantidade_produto` int(6) UNSIGNED NOT NULL,
-  `tipo_volume` varchar(12) NOT NULL
+  `quantidade_produto` decimal(10,2) UNSIGNED NOT NULL,
+  `tipo_volume` varchar(12) NOT NULL,
+  `valor_energetico_kcal` decimal(10,2) DEFAULT NULL,
+  `acucares_totais_g` decimal(10,2) DEFAULT NULL,
+  `acucares_adicionados_g` decimal(10,2) DEFAULT NULL,
+  `carboidratos_g` decimal(10,2) DEFAULT NULL,
+  `proteinas_g` decimal(10,2) DEFAULT NULL,
+  `gorduras_totais_g` decimal(10,2) DEFAULT NULL,
+  `gorduras_saturadas_g` decimal(10,2) DEFAULT NULL,
+  `gorduras_trans_g` decimal(10,2) DEFAULT NULL,
+  `fibra_alimentar_g` decimal(10,2) DEFAULT NULL,
+  `sodio_g` decimal(10,2) DEFAULT NULL,
+  `data_criacao` timestamp NOT NULL DEFAULT current_timestamp(),
+  `data_modificacao` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -110,6 +122,19 @@ INSERT INTO `usuarios` (`id`, `nome`, `telefone`, `email`, `senha`) VALUES
 (2, 'Luis Otavio', '19999999999', 'tevinho@gmail.com', '$2y$10$XdRmRirHIPOD4mU2wDzg1O5lkesoDXOVpz5Bf5bRRWnuu5fyYs2Ie');
 
 --
+-- Estrutura da tabela `historico_uso`
+--
+
+CREATE TABLE `historico_uso` (
+  `id_historico` int(11) NOT NULL,
+  `nome_receita` varchar(255) NOT NULL,
+  `nome_ingrediente` varchar(255) NOT NULL,
+  `quantidade_usada` decimal(10,2) NOT NULL,
+  `unidade_medida` varchar(50) DEFAULT NULL,
+  `data_hora_uso` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
 -- Índices para tabelas despejadas
 --
 
@@ -124,7 +149,8 @@ ALTER TABLE `login_tokens`
 -- Índices para tabela `produtos`
 --
 ALTER TABLE `produtos`
-  ADD PRIMARY KEY (`id_produto`);
+  ADD PRIMARY KEY (`id_produto`),
+  ADD UNIQUE KEY `nome_produto` (`nome_produto`);
 
 --
 -- Índices para tabela `receitas`
