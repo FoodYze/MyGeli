@@ -10,6 +10,8 @@ import re
 import google.generativeai as genai
 import threading
 from gui0 import GOOGLE_API_KEY
+import mysql.connector
+from mysql.connector import Error
 
 # --- Constantes e Configurações ---
 OUTPUT_PATH = Path(__file__).parent
@@ -18,6 +20,36 @@ SAVED_RECIPES_DIR = OUTPUT_PATH / "saved_recipes"
 ASSETS_PATH = OUTPUT_PATH / "assets" / "frame2"
 DOWNLOADS_BUILD_PATH = OUTPUT_PATH
 FAVORITE_PREFIX = "★_"
+ICONS_GERAL_PATH = OUTPUT_PATH / "assets" / "geral"
+
+# --- SUAS CREDENCIAIS ---
+db_host = "localhost"
+db_name = "mygeli"
+db_usuario = "foodyzeadm"
+db_senha = "supfood0017admx"
+
+def conectar_mysql(host, database, user, password):
+    """ Tenta conectar ao banco de dados MySQL. """
+    try:
+        conexao = mysql.connector.connect(
+            host=host,
+            database=database,
+            user=user,
+            password=password
+        )
+        if conexao.is_connected():
+            db_info = conexao.get_server_info()
+            print(f"Conectado ao MySQL versão {db_info}")
+            cursor = conexao.cursor()
+            cursor.execute("select database();")
+            record = cursor.fetchone()
+            print(f"Você está conectado ao banco de dados: {record[0]}")
+            print("Log: Conexão ao MySQL bem-sucedida!")
+            return conexao
+    except Error as e:
+        print(f"Log: Erro CRÍTICO ao conectar ao MySQL: {e}")
+        messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao banco de dados:\n{e}\n\nVerifique suas credenciais e se o servidor MySQL está rodando.")
+        return None
 
 """Chamada do Gemini para gerar instruções nutricionais"""
 try:
@@ -31,6 +63,109 @@ except Exception as e:
 recipe_buttons_canvas = None
 recipe_buttons_inner_frame = None
 window = None
+
+def _parse_todos_os_ingredientes(recipe_text):
+    """
+    Analisa o texto da receita, extraindo TODOS os ingredientes listados
+    entre 'INGREDIENTES:' e 'PREPARO:'. Também faz a conversão de unidades.
+    """
+    try:
+        ingredients_block = recipe_text.split("INGREDIENTES:")[1].split("PREPARO:")[0]
+    except IndexError:
+        print("AVISO: Estrutura 'INGREDIENTES:' ou 'PREPARO:' não encontrada. Análise cancelada.")
+        return []
+
+    parsed_ingredients = []
+    for line in ingredients_block.splitlines():
+        if not line.strip():
+            continue 
+        cleaned_line = re.sub(r'\s*\(do estoque\)', '', line, flags=re.IGNORECASE).strip()
+        match = re.match(r"^\s*([\d\.,]+)\s*(\w*)\s*(?:de\s)?(.*)", cleaned_line, re.IGNORECASE)
+        
+        if match:
+            try:
+                qty_str = match.group(1).replace(',', '.')
+                quantidade = float(qty_str)
+                unidade = match.group(2).strip()
+                nome = match.group(3).strip()
+
+                if not nome:
+                    nome = unidade; unidade = "unidade(s)"
+                if nome.lower().startswith('de '):
+                    nome = nome[3:]
+                
+                unidade_lower = unidade.lower()
+                if unidade_lower in ['kg', 'kgs']:
+                    quantidade *= 1000
+                elif unidade_lower in ['l', 'litro', 'litros']:
+                    quantidade *= 1000
+
+                parsed_ingredients.append({"nome": nome.strip(), "quantidade": quantidade, "unidade": unidade})
+            except (ValueError, IndexError):
+                print(f"DEBUG: Linha ignorada na análise de ingredientes: '{line}'")
+                continue
+    return parsed_ingredients
+
+
+def executar_baixa_estoque(conexao, recipe_text, parent_window):
+    recipe_title = extract_recipe_name_from_content(recipe_text)
+    todos_ingredientes = _parse_todos_os_ingredientes(recipe_text)
+
+    if not todos_ingredientes:
+        messagebox.showinfo("Aviso", "Não foi possível encontrar uma lista de ingredientes formatada nesta receita.", parent=parent_window)
+        return
+
+    if not conexao or not conexao.is_connected():
+        messagebox.showerror("Erro de Conexão", "Sem conexão com o banco de dados para atualizar o estoque.", parent=parent_window)
+        return
+    
+    confirm = messagebox.askyesno("Confirmar Consumo", f"Deseja dar baixa de TODOS os ingredientes possíveis para a receita '{recipe_title}'?\n\nO sistema só irá subtrair os itens que você possui no estoque.", parent=parent_window)
+    if not confirm:
+        return
+
+    sucesso_lista = []
+    falha_lista = []
+
+    try:
+        cursor = conexao.cursor()
+        for item in todos_ingredientes:
+            cursor.execute(
+                """
+                UPDATE produtos SET quantidade_produto = quantidade_produto - %s 
+                WHERE TRIM(LOWER(nome_produto)) = TRIM(LOWER(%s)) AND quantidade_produto >= %s
+                """,
+                (item['quantidade'], item['nome'], item['quantidade'])
+            )
+            if cursor.rowcount > 0:
+                sucesso_lista.append(item['nome'])
+                cursor.execute(
+                    """
+                    INSERT INTO historico_uso (nome_receita, nome_ingrediente, quantidade_usada, unidade_medida)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (recipe_title, item['nome'], item['quantidade'], item['unidade'])
+                )
+            else:
+                falha_lista.append(item['nome'])
+        
+        conexao.commit()
+        cursor.close()
+
+        # Monta uma mensagem final para o usuário
+        mensagem_final = ""
+        if sucesso_lista:
+            mensagem_final += "Itens baixados do estoque com sucesso:\n- " + "\n- ".join(sucesso_lista)
+        if falha_lista:
+            mensagem_final += "\n\nItens não encontrados ou com estoque insuficiente (nenhuma alteração feita):\n- " + "\n- ".join(falha_lista)
+        
+        if not sucesso_lista and falha_lista:
+            messagebox.showwarning("Nenhum Item Baixado", "Nenhum dos ingredientes da receita foi encontrado no seu estoque.", parent=parent_window)
+        else:
+            messagebox.showinfo("Operação Concluída", mensagem_final.strip(), parent=parent_window)
+
+    except Error as e:
+        conexao.rollback()
+        messagebox.showerror("Erro no Banco de Dados", f"Ocorreu um erro e a operação foi revertida: {e}", parent=parent_window)
 
 # --- Funções Auxiliares ---
 def sanitize_filename(name: str) -> str:
@@ -339,6 +474,8 @@ def show_nutritional_result(result_text: str, parent_app: tk.Tk):
     parent_app.wait_window(result_window)
 
 def display_selected_recipe(recipe_filepath: Path, parent_app):
+    db_connection = parent_app.conexao
+    back_arrow_img = load_tk_image(ICONS_GERAL_PATH / "seta.png", size=(20, 20))
     try:
         ICONS_PATH = OUTPUT_PATH / "assets" / "geral"
 
@@ -395,18 +532,19 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
             if text_area.cget("state") == "disabled":
                 text_area.configure(state="normal", bg="#FFFFFF"); text_area.focus_set()
                 save_button.pack(side="left", expand=True, fill='x', padx=2)
-                edit_button.configure(text="Cancelar")
-                # CORREÇÃO: Esconde o frame usando grid
-                header_frame.grid_remove()
-                close_button.pack_forget()
+                edit_button.pack_forget()
+                consume_button.pack_forget()
+                back_button.configure(text="Cancelar", image="", command=toggle_edit_mode, style="TButton") 
+                back_button.pack(side="right", expand=True, fill='x', padx=(2,0))
             else:
                 text_area.configure(state="disabled", bg="#F0F0F0")
                 text_area.delete("1.0", "end"); text_area.insert("end", original_recipe_content)
                 save_button.pack_forget()
-                edit_button.configure(text="Editar")
-                # CORREÇÃO: Mostra o frame de volta na sua posição original do grid
-                header_frame.grid()
-                close_button.pack(side="right", expand=True, fill='x', padx=2)
+                back_button.pack_forget()
+                back_button.configure(text="", image=back_arrow_img, command=recipe_window.destroy, style="Header.TButton") 
+                back_button.pack(side="left", fill='y', padx=(0, 2))
+                edit_button.pack(side="left", expand=True, fill='x', padx=2)
+                consume_button.pack(side="right", expand=True, fill='x', padx=(2, 0))
         
         def save_changes():
             nonlocal original_recipe_content, current_filepath
@@ -452,11 +590,23 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
         delete_button.grid(row=0, column=3, sticky="e")
         
         save_button = ttk.Button(button_frame, text="Salvar Alterações", command=save_changes, style="Accent.TButton")
+        back_button = ttk.Button(button_frame, image=back_arrow_img, command=recipe_window.destroy, style="Header.TButton", width=5)
         edit_button = ttk.Button(button_frame, text="Editar", command=toggle_edit_mode)
-        close_button = ttk.Button(button_frame, text="Voltar", command=recipe_window.destroy, style="Red.TButton")
-        
+        consume_button = ttk.Button(button_frame, text="Consumir", style="Accent.TButton", command=lambda: executar_baixa_estoque(db_connection, original_recipe_content, recipe_window))
+
+        back_button.pack(side="left", fill='y', padx=(0, 2))
         edit_button.pack(side="left", expand=True, fill='x', padx=2)
-        close_button.pack(side="right", expand=True, fill='x', padx=2)
+        consume_button.pack(side="right", expand=True, fill='x', padx=(2, 0))
+        original_toggle_edit = toggle_edit_mode
+        def new_toggle_edit_mode():
+            is_disabled = text_area.cget("state") == "disabled"
+            original_toggle_edit()
+            if is_disabled:
+                consume_button.pack_forget()
+            else:
+                consume_button.pack(side="right", expand=True, fill='x', padx=(2, 0))
+
+        edit_button.configure(command=new_toggle_edit_mode)
         
         update_favorite_button_state()
         recipe_window.transient(parent_app); recipe_window.grab_set(); parent_app.wait_window(recipe_window)
@@ -698,8 +848,9 @@ def open_search_box(parent_app):
 
 # --- Configuração da Janela Principal ---
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, conexao_bd=None):
         super().__init__()
+        self.conexao = conexao_bd 
         global window, recipe_buttons_canvas, recipe_buttons_inner_frame
         window = self 
 
@@ -804,10 +955,15 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self._on_closing) 
 
     def _on_closing(self):
+        if self.conexao and self.conexao.is_connected():
+            print("Fechando conexão com o banco de dados.")
+            self.conexao.close()
         self.destroy()
 
 # --- Execução da Aplicação ---
 if __name__ == "__main__":
     SAVED_RECIPES_DIR.mkdir(parents=True, exist_ok=True)
-    app = App()
+
+    conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+    app = App(conexao_bd=conexao)
     app.mainloop()
