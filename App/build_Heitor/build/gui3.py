@@ -191,9 +191,14 @@ class InventoryApp(ctk.CTk):
         ctk.CTkLabel(main_frame, text="Porção: 100g", font=table_font, text_color="gray50").grid(row=1, column=0, columnspan=2, pady=(0, 15))
         
         nutrients_map = {
-            "Valor energético": ("valor_energetico_kcal", "kcal"), "Carboidratos": ("carboidratos_g", "g"), 
-            "Proteínas": ("proteinas_g", "g"), "Gorduras totais": ("gorduras_totais_g", "g"), 
-            "Gorduras saturadas": ("gorduras_saturadas_g", "g"), "Fibra alimentar": ("fibra_alimentar_g", "g"), 
+            "Valor energético": ("valor_energetico_kcal", "kcal"),
+            "Açúcares Totais": ("acucares_totais_g", "g"),
+            "Açúcares Adicionados": ("acucares_adicionados_g", "g"),
+            "Carboidratos": ("carboidratos_g", "g"), 
+            "Proteínas": ("proteinas_g", "g"),
+            "Gorduras totais": ("gorduras_totais_g", "g"),
+            "Gorduras saturadas": ("gorduras_saturadas_g", "g"),
+            "Fibra alimentar": ("fibra_alimentar_g", "g"), 
             "Sódio": ("sodio_g", "g")
         }
         
@@ -209,15 +214,18 @@ class InventoryApp(ctk.CTk):
         dialog.after(100, dialog.lift)
     
     def _try_update_nutritional_info_if_missing(self, name, cursor):
+        """Verifica se ALGUM campo nutricional está faltando e busca na API se necessário."""
         try:
-            cursor.execute("SELECT valor_energetico_kcal FROM produtos WHERE nome_produto = %s", (name,))
+            campos_nutricionais = "valor_energetico_kcal, acucares_totais_g, acucares_adicionados_g, carboidratos_g, proteinas_g, gorduras_totais_g, gorduras_saturadas_g, fibra_alimentar_g, sodio_g"
+            cursor.execute(f"SELECT {campos_nutricionais} FROM produtos WHERE nome_produto = %s", (name,))
             result = cursor.fetchone()
-            if result and result['valor_energetico_kcal'] is None:
-                print(f"Dados nutricionais faltando para '{name}'. Buscando na API...")
+
+            if result and any(value is None for value in result.values()):
+                print(f"Dados nutricionais incompletos para '{name}'. Buscando na API...")
                 nutritional_data = get_nutritional_info_from_api(name)
                 
                 if nutritional_data:
-                    keys = ["valor_energetico_kcal", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
+                    keys = list(result.keys())
                     query = f"UPDATE produtos SET {', '.join([f'{k} = %s' for k in keys])} WHERE nome_produto = %s"
                     values = [nutritional_data.get(k) for k in keys] + [name]
                     cursor.execute(query, tuple(values))
@@ -487,7 +495,7 @@ class InventoryApp(ctk.CTk):
                         if not GOOGLE_API_KEY: msg = "API Key não configurada. Adicionar sem dados nutricionais?"
                         if not messagebox.askyesno("API indisponível", msg, parent=dialog): cursor.close(); return
                         nutritional_data = {}
-                    keys = ["valor_energetico_kcal", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
+                    keys = ["valor_energetico_kcal", "acucares_totais_g", "acucares_adicionados_g", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
                     query = f"INSERT INTO produtos (nome_produto, quantidade_produto, tipo_volume, {', '.join(keys)}) VALUES (%s, %s, %s, {', '.join(['%s']*len(keys))})"
                     values = (name, qty_base, unit_base) + tuple(nutritional_data.get(k) for k in keys)
                     cursor.execute(query, values)
