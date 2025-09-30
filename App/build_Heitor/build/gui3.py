@@ -132,6 +132,7 @@ class InventoryApp(ctk.CTk):
         self.unit_units = ["Unidades"]
         
         self.create_widgets()
+        self.after(100, self.check_low_stock_on_startup)
 
     def _validate_numeric_input(self, value_if_allowed):
         """Função 'fiscal' que permite apenas dígitos, uma vírgula ou um ponto."""
@@ -419,6 +420,68 @@ class InventoryApp(ctk.CTk):
     def _center_dialog(self, dialog, width, height):
         self.update_idletasks(); parent_x = self.winfo_x(); parent_y = self.winfo_y(); parent_width = self.winfo_width(); parent_height = self.winfo_height(); center_x = parent_x + (parent_width // 2) - (width // 2); center_y = parent_y + (parent_height // 2) - (height // 2); dialog.geometry(f"{width}x{height}+{center_x}+{center_y}")
 
+    def check_low_stock_on_startup(self):
+        """Verifica o estoque e exibe um pop-up de alerta se necessário."""
+        low_stock_items = []
+        for name, data in self.local_stock.items():
+            try:
+                numeric_qty = float(data["quantidade_produto"])
+                unit = data["tipo_volume"]
+                is_low = False
+                if unit == 'Unidades' and numeric_qty <= 2:
+                    is_low = True
+                elif unit == 'Gramas' and numeric_qty <= 500:
+                    is_low = True
+                elif unit == 'Mililitros' and numeric_qty <= 500:
+                    is_low = True
+                
+                if is_low:
+                    formatted_qty, display_unit = self.formatar_exibicao(numeric_qty, unit)
+                    low_stock_items.append(f"- {name}: {formatted_qty} {display_unit}")
+            except (ValueError, TypeError):
+                continue
+        
+        if low_stock_items:
+            message = "Os seguintes itens estão com baixo estoque:\n\n" + "\n".join(low_stock_items)
+            
+            # Criando um TopLevel para o pop-up
+            dialog = ctk.CTkToplevel(self)
+            dialog.title("Alerta de Estoque Baixo")
+            dialog.attributes("-topmost", True) # Mantém o pop-up na frente
+            
+            # Frame principal do pop-up
+            main_frame = ctk.CTkFrame(dialog, corner_radius=10)
+            main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+            # Ícone de alerta (opcional, mas melhora a UX)
+            try:
+                # Adapte o caminho para um ícone de sua preferência
+                alert_icon_path = OUTPUT_PATH / "assets" / "geral" / "alert_icon.png" 
+                pil_alert_icon = Image.open(alert_icon_path).resize((40, 40), Image.LANCZOS)
+                alert_icon = ctk.CTkImage(light_image=pil_alert_icon, size=(40, 40))
+                icon_label = ctk.CTkLabel(main_frame, image=alert_icon, text="")
+                icon_label.pack(pady=(0, 10))
+            except Exception as e:
+                print(f"Ícone de alerta não encontrado: {e}")
+
+            # Mensagem de texto
+            label = ctk.CTkLabel(main_frame, text=message, font=self.item_name_font, justify="left")
+            label.pack(pady=(0, 15), padx=10)
+
+            # Botão para fechar
+            ok_button = ctk.CTkButton(main_frame, text="OK", command=dialog.destroy, width=100)
+            ok_button.pack(pady=(0, 10))
+            
+            # Centraliza o pop-up
+            self.update_idletasks()
+            dialog_width = 400
+            dialog_height = 200 + (len(low_stock_items) * 20) # Ajusta a altura dinamicamente
+            self._center_dialog(dialog, dialog_width, dialog_height)
+            
+            dialog.transient(self)
+            dialog.grab_set()
+
+
     def open_add_item_dialog(self):
         self._refresh_item_list() 
         item_names = list(self.local_stock.keys())
@@ -551,29 +614,12 @@ class InventoryApp(ctk.CTk):
             try:
                 cursor = self.connection.cursor()
                 nova_quantidade = stock_qty_base - qty_to_remove_base
-                if abs(nova_quantidade) < 0.001: 
-                    query = "DELETE FROM produtos WHERE nome_produto = %s"
-                    cursor.execute(query, (name,))
-                else: 
-                    query = "UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s"
-                    cursor.execute(query, (nova_quantidade, name))
-                log_query = """
-                INSERT INTO historico_uso 
-                    (nome_ingrediente, nome_receita, quantidade_usada, unidade_medida, data_hora_uso)
-                VALUES (%s, %s, %s, %s, NOW())
-                """
-                log_values = (name, "Ajuste de Estoque", qty_to_remove_base, unidade_base_remocao)
-                cursor.execute(log_query, log_values)
-                print(f"Log (Estoque): Remoção de '{name}' registrada no histórico.")
-                self.connection.commit()
-                cursor.close()
-                self._refresh_item_list(self.search_entry.get().strip())
-                dialog.destroy()
-                messagebox.showinfo("Sucesso!", f"Operação realizada com sucesso.", parent=self)
-            
-            except Error as e: 
-                self.connection.rollback()
-                messagebox.showerror("Erro de BD", f"Falha ao remover item: {e}", parent=dialog)
+                if abs(nova_quantidade) < 0.001: query = "DELETE FROM produtos WHERE nome_produto = %s"; cursor.execute(query, (name,))
+                else: query = "UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s"; cursor.execute(query, (nova_quantidade, name))
+                self.connection.commit(); cursor.close(); self._refresh_item_list(self.search_entry.get().strip()); dialog.destroy(); messagebox.showinfo("Sucesso!", f"Operação realizada.", parent=self)
+            except Error as e: messagebox.showerror("Erro de BD", f"Falha ao remover item: {e}", parent=dialog)
+        
+        # ADIÇÃO DOS BOTÕES: Este bloco cria o frame e os botões de ação
         btn_frame = ctk.CTkFrame(dialog, fg_color="transparent"); btn_frame.pack(fill="x", padx=20, pady=(20,10))
         remove_btn = ctk.CTkButton(btn_frame, text="Remover", command=_remove_item_action, font=self.dialog_button_font, fg_color="#f44336", hover_color="#CC3322", corner_radius=12, height=35); remove_btn.pack(side="right", padx=5)
         cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D", corner_radius=12, height=35); cancel_btn.pack(side="right", padx=5)
