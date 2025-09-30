@@ -551,12 +551,29 @@ class InventoryApp(ctk.CTk):
             try:
                 cursor = self.connection.cursor()
                 nova_quantidade = stock_qty_base - qty_to_remove_base
-                if abs(nova_quantidade) < 0.001: query = "DELETE FROM produtos WHERE nome_produto = %s"; cursor.execute(query, (name,))
-                else: query = "UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s"; cursor.execute(query, (nova_quantidade, name))
-                self.connection.commit(); cursor.close(); self._refresh_item_list(self.search_entry.get().strip()); dialog.destroy(); messagebox.showinfo("Sucesso!", f"Operação realizada.", parent=self)
-            except Error as e: messagebox.showerror("Erro de BD", f"Falha ao remover item: {e}", parent=dialog)
-        
-        # ADIÇÃO DOS BOTÕES: Este bloco cria o frame e os botões de ação
+                if abs(nova_quantidade) < 0.001: 
+                    query = "DELETE FROM produtos WHERE nome_produto = %s"
+                    cursor.execute(query, (name,))
+                else: 
+                    query = "UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s"
+                    cursor.execute(query, (nova_quantidade, name))
+                log_query = """
+                INSERT INTO historico_uso 
+                    (nome_ingrediente, nome_receita, quantidade_usada, unidade_medida, data_hora_uso)
+                VALUES (%s, %s, %s, %s, NOW())
+                """
+                log_values = (name, "Ajuste de Estoque", qty_to_remove_base, unidade_base_remocao)
+                cursor.execute(log_query, log_values)
+                print(f"Log (Estoque): Remoção de '{name}' registrada no histórico.")
+                self.connection.commit()
+                cursor.close()
+                self._refresh_item_list(self.search_entry.get().strip())
+                dialog.destroy()
+                messagebox.showinfo("Sucesso!", f"Operação realizada com sucesso.", parent=self)
+            
+            except Error as e: 
+                self.connection.rollback()
+                messagebox.showerror("Erro de BD", f"Falha ao remover item: {e}", parent=dialog)
         btn_frame = ctk.CTkFrame(dialog, fg_color="transparent"); btn_frame.pack(fill="x", padx=20, pady=(20,10))
         remove_btn = ctk.CTkButton(btn_frame, text="Remover", command=_remove_item_action, font=self.dialog_button_font, fg_color="#f44336", hover_color="#CC3322", corner_radius=12, height=35); remove_btn.pack(side="right", padx=5)
         cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D", corner_radius=12, height=35); cancel_btn.pack(side="right", padx=5)
