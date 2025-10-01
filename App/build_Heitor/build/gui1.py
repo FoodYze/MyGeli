@@ -97,6 +97,11 @@ class App(ctk.CTk):
         user_icon_image = ctk.CTkImage(Image.open(assets_path / "user_icon.png").resize((32, 32), Image.LANCZOS), size=(40, 40))
         user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
         user_button.pack(side="left", padx=10, pady=10)
+
+        # Ícone de Configurações
+        options_image = ctk.CTkImage(Image.open(assets_path / "options.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
+        options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
+        options_button.pack(side="right", padx=5, pady=5)
         
         # --- Frame do Conteúdo Principal ---
         # Este frame principal conterá o conteúdo e o espaçador
