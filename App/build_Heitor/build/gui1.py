@@ -133,7 +133,7 @@ class App(ctk.CTk):
         ctk.CTkButton(buttons_frame, text="FALAR COM GELI", command=lambda: abrir_gui("gui0.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
         ctk.CTkButton(buttons_frame, text="VER RECEITAS", command=lambda: abrir_gui("gui2.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=1, column=0, padx=20, pady=10, sticky="ew")
         ctk.CTkButton(buttons_frame, text="GERENCIAR ESTOQUE", command=lambda: abrir_gui("gui3.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=2, column=0, padx=20, pady=10, sticky="ew")
-        ctk.CTkButton(buttons_frame, text="GUI4 FUTURA LISTA D COMPRAS", command=lambda: abrir_gui("gui4.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=3, column=0, padx=20, pady=(10, 20), sticky="ew")
+        ctk.CTkButton(buttons_frame, text="LISTA DE COMPRAS", command=lambda: abrir_gui("gui4.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=3, column=0, padx=20, pady=(10, 20), sticky="ew")
 
 # --- Execução da Aplicação ---
 if __name__ == "__main__":

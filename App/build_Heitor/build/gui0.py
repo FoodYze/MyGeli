@@ -11,6 +11,9 @@ import traceback
 import re
 from tkinter import messagebox
 import threading
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def conectar_mysql(host, database, user, password):
     """ Tenta conectar ao banco de dados MySQL. """
@@ -119,15 +122,16 @@ def formatar_receitas_para_ia(lista_titulos):
 
 # --- INÍCIO: Configuração da API Gemini ---
 
-# Substitua 'SUA_CHAVE_API_AQUI' pela sua chave real.
-GOOGLE_API_KEY = 'Sua Chave de Api Aqui'
+# Carrega a chave da API a partir de uma variável de ambiente para mais segurança.
+# Certifique-se de que a variável de ambiente 'GOOGLE_API_KEY' está configurada.
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
 API_CONFIGURADA = False
 model = None
 chat_session = None # Adicionando a variável de sessão de chat globalmente
 
-if not GOOGLE_API_KEY or GOOGLE_API_KEY == 'SUA_CHAVE_API_AQUI':
-    print("Erro: A chave API do Google não foi definida ou ainda é o placeholder.")
+if not GOOGLE_API_KEY:
+    print("Erro: A variável de ambiente GOOGLE_API_KEY não foi encontrada ou não está definida.")
     # Em um aplicativo real, você pode querer mostrar isso na UI também ou ter um fallback.
 else:
     try:
@@ -700,7 +704,8 @@ class App(ctk.CTk):
             self.last_recipe_for_update = None
 
 if __name__ == "__main__":
-    if not GOOGLE_API_KEY or GOOGLE_API_KEY == 'SUA_CHAVE_API_AQUI':
+    # Se a variável de ambiente GOOGLE_API_KEY não foi encontrada, mostra um alerta.
+    if not GOOGLE_API_KEY:
         # Janela de Alerta se a API Key não estiver configurada
         alert_root = ctk.CTk()
         alert_root.title("Configuração Necessária")
@@ -708,13 +713,13 @@ if __name__ == "__main__":
         alert_root.attributes("-topmost", True) # Mantém a janela no topo
 
         alert_label_title = ctk.CTkLabel(alert_root,
-                                         text="Chave API do Google Não Configurada!",
+                                         text="Chave API do Google Não Encontrada!",
                                          font=("Helvetica", 16, "bold"),
                                          text_color="#D32F2F") # Cor vermelha para alerta
         alert_label_title.pack(pady=(10,5), padx=20)
 
         alert_label_message = ctk.CTkLabel(alert_root,
-                                     text="Por favor, defina a variável 'GOOGLE_API_KEY' no início do arquivo gui.py com sua chave API válida do Google AI Studio.\n\nO programa não funcionará corretamente sem ela.",
+                                     text="A variável de ambiente 'GOOGLE_API_KEY' não foi encontrada.\n\nPor favor, configure-a no seu sistema para que o programa possa se conectar à API do Google.",
                                      font=("Helvetica", 13),
                                      wraplength=420, # Quebra de linha para textos longos
                                      justify="center")
