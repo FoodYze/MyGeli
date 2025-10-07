@@ -12,7 +12,10 @@ import google.generativeai as genai
 import threading
 from gui0 import GOOGLE_API_KEY
 
-
+# --- NOVOS IMPORTS PARA COMANDO DE VOZ ---
+import speech_recognition as sr
+import re
+import time
 
 try:
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -84,6 +87,8 @@ OUTPUT_PATH = Path(__file__).parent
 SETA_IMAGE_PATH = OUTPUT_PATH / "assets" / "geral" / "seta.png"
 UP_ARROW_IMAGE_PATH = OUTPUT_PATH / "assets" / "geral" / "up_arrow.png"
 DOWN_ARROW_IMAGE_PATH = OUTPUT_PATH / "assets" / "geral" / "down_arrow.png"
+# --- NOVO ÍCONE ---
+MIC_IMAGE_PATH = OUTPUT_PATH / "assets" / "geral" / "mic_icon.png" 
 
 class InventoryApp(ctk.CTk):
     def __init__(self, db_connection):
@@ -91,6 +96,7 @@ class InventoryApp(ctk.CTk):
 
         self.connection = db_connection
         self.local_stock = {}
+        self.voice_feedback_window = None
 
         if not self.connection:
             self.destroy()
@@ -110,8 +116,16 @@ class InventoryApp(ctk.CTk):
         self.minsize(400, 650); self.maxsize(400, 650)
         self.configure(fg_color="#F5F5F5")
 
-        # --- Validador que permite apenas números, ponto e vírgula ---
         self.vcmd = (self.register(self._validate_numeric_input), '%P')
+        
+        # --- NOVAS VARIÁVEIS DE ESTADO PARA GRAVAÇÃO ---
+        self.recognizer = sr.Recognizer()
+        self.is_recording = False
+        self.audio_frames = []
+        self.recording_thread = None
+        self.sample_rate = None
+        self.sample_width = None
+
 
         try:
             self.title_font = ctk.CTkFont("Poppins Bold", 22)
@@ -125,7 +139,6 @@ class InventoryApp(ctk.CTk):
         except Exception:
             self.title_font, self.header_font, self.item_name_font, self.qty_font, self.dialog_label_font, self.dialog_hint_font, self.dialog_entry_font, self.dialog_button_font = ("Arial", 22, "bold"), ("Arial", 16), ("Arial", 14), ("Arial", 14), ("Arial", 12), ("Arial", 10, "italic"), ("Arial", 12), ("Arial", 12, "bold")
 
-        # --- UNIDADES COM TEXTO DESCRITIVO ---
         self.measurement_units = ["Unidades", "Quilos (Kg)", "Gramas (g)", "Litros (L)", "Mililitros (ml)"]
         self.mass_units = ["Gramas (g)", "Quilos (Kg)"]
         self.volume_units = ["Mililitros (ml)", "Litros (L)"]
@@ -134,11 +147,206 @@ class InventoryApp(ctk.CTk):
         self.create_widgets()
         self.after(100, self.check_low_stock_on_startup)
 
+    # --- INÍCIO DA SEÇÃO DE COMANDO DE VOZ (LÓGICA PUSH-TO-TALK) ---
+
+    def _show_voice_feedback(self, message):
+        """Cria ou atualiza uma janela de feedback para o comando de voz."""
+        if self.voice_feedback_window is None or not self.voice_feedback_window.winfo_exists():
+            self.voice_feedback_window = ctk.CTkToplevel(self)
+            self.voice_feedback_window.title("Comando de Voz")
+            self.voice_feedback_window.transient(self)
+            self.voice_feedback_window.grab_set()
+            self.voice_feedback_window.resizable(False, False)
+            self._center_dialog(self.voice_feedback_window, 300, 100)
+            self.voice_feedback_label = ctk.CTkLabel(self.voice_feedback_window, text=message, font=self.item_name_font)
+            self.voice_feedback_label.pack(expand=True, padx=20, pady=20)
+        else:
+            self.voice_feedback_label.configure(text=message)
+        self.voice_feedback_window.update()
+
+    def _close_voice_feedback(self, delay=2000):
+        """Fecha a janela de feedback após um tempo."""
+        if self.voice_feedback_window and self.voice_feedback_window.winfo_exists():
+            self.after(delay, self.voice_feedback_window.destroy)
+
+    def _start_recording(self, event):
+        """Inicia a gravação de áudio em uma thread separada."""
+        self.audio_frames.clear()
+        self.is_recording = True
+        
+        # CRIA a janela de feedback PRIMEIRO
+        self._show_voice_feedback("Ouvindo... (solte para parar)")
+
+        # Associa o evento de soltar o botão À JANELA de feedback, que tem o foco
+        if self.voice_feedback_window and self.voice_feedback_window.winfo_exists():
+            self.voice_feedback_window.bind("<ButtonRelease-1>", self._stop_recording_and_process)
+
+        self.recording_thread = threading.Thread(target=self._record_loop, daemon=True)
+        self.recording_thread.start()
+
+    def _record_loop(self):
+        """Loop que captura áudio do microfone enquanto is_recording for True."""
+        mic = sr.Microphone()
+        with mic as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=0.2)
+            self.sample_rate = source.SAMPLE_RATE
+            self.sample_width = source.SAMPLE_WIDTH
+            while self.is_recording:
+                try:
+                    self.audio_frames.append(source.stream.read(source.CHUNK))
+                except Exception as e:
+                    print(f"Erro ao ler o stream de áudio: {e}")
+                    break
+    
+    def _stop_recording_and_process(self, event):
+        """Para a gravação e inicia o processamento em uma nova thread."""
+        # Desassocia o evento para evitar chamadas múltiplas ou acidentais
+        if self.voice_feedback_window and self.voice_feedback_window.winfo_exists():
+            self.voice_feedback_window.unbind("<ButtonRelease-1>")
+
+        if not self.is_recording:
+            return
+        
+        self.is_recording = False
+        self._show_voice_feedback("Processando...")
+        
+        # Inicia uma thread para aguardar o fim da gravação e processar o áudio
+        # Isso evita que a UI congele enquanto espera a thread de gravação terminar.
+        threading.Thread(target=self._process_audio_in_background, daemon=True).start()
+
+    def _process_audio_in_background(self):
+        """Aguarda o fim da gravação e então processa os dados de áudio."""
+        if self.recording_thread:
+            self.recording_thread.join() # Aguarda a thread de gravação finalizar
+
+        if not self.audio_frames:
+            self.after(0, self._show_voice_feedback, "Nenhum áudio gravado.")
+            self.after(0, self._close_voice_feedback)
+            return
+
+        recorded_data = b"".join(self.audio_frames)
+        audio_data = sr.AudioData(recorded_data, self.sample_rate, self.sample_width)
+
+        try:
+            texto = self.recognizer.recognize_google(audio_data, language='pt-BR')
+            print(f"Log (Voz): Texto reconhecido: '{texto}'")
+            
+            # CORREÇÃO: Chama a função do Gemini e verifica a resposta
+            comando = self._interpretar_comando_com_gemini(texto)
+            
+            if comando and "erro" not in comando:
+                msg_confirmacao = f"Entendido:\n{comando['acao'].capitalize()} {comando['quantidade']:g} {comando['unidade']} de {comando['item']}".replace('.',',')
+                self.after(0, self._show_voice_feedback, msg_confirmacao)
+                self.after(1500, self._executar_acao_db, comando)
+            else:
+                erro_msg = comando.get('erro', 'Comando não reconhecido.') if isinstance(comando, dict) else 'Comando não reconhecido.'
+                self.after(0, self._show_voice_feedback, f"Erro: {erro_msg}")
+                self.after(0, self._close_voice_feedback, 3000)
+
+        except sr.UnknownValueError:
+            self.after(0, self._show_voice_feedback, "Não entendi. Fale claramente.")
+            self.after(0, self._close_voice_feedback)
+        except sr.RequestError as e:
+            self.after(0, self._show_voice_feedback, "Erro de conexão com API de voz.")
+            self.after(0, self._close_voice_feedback)
+            print(f"Log (Voz): Erro na API do Google; {e}")
+
+    def _interpretar_comando_com_gemini(self, texto):
+        """Envia o texto transcrito para a API Gemini para interpretação e formatação."""
+        if not model:
+            messagebox.showwarning("API Desabilitada", "A funcionalidade de voz com Gemini não está ativa. Verifique a chave da API.")
+            return {"erro": "API do Gemini não configurada."}
+        if not texto:
+            return None
+
+        prompt = (
+            "Você é um assistente de um aplicativo de gerenciamento de despensa. Sua tarefa é analisar a transcrição de um comando de voz do usuário e extraí-la para um formato JSON estruturado e sem formatação markdown.\n"
+            "O JSON de saída deve ter as seguintes chaves:\n"
+            "- `acao`: pode ser \"adicionar\" ou \"remover\".\n"
+            "- `quantidade`: um número (float ou int).\n"
+            "- `unidade`: uma das seguintes opções padronizadas: \"Unidades\", \"Quilos (Kg)\", \"Gramas (g)\", \"Litros (L)\", \"Mililitros (ml)\". Se nenhuma unidade for mencionada para um item contável, use \"Unidades\".\n"
+            "- `item`: o nome do produto, corrigindo possíveis erros de transcrição.\n\n"
+            "Regras:\n"
+            "- Normalize as ações: 'tirar', 'retirar', 'remover' devem se tornar \"remover\". 'adicionar', 'colocar', 'incluir' devem se tornar \"adicionar\".\n"
+            "- Normalize as unidades: 'quilo'/'quilos'/'kg' para \"Quilos (Kg)\", 'grama'/'gramas'/'g' para \"Gramas (g)\", 'litro'/'litros'/'l' para \"Litros (L)\", 'mililitro'/'mililitros'/'ml' para \"Mililitros (ml)\".\n"
+            "- Se o texto não parecer um comando válido, retorne um JSON com a chave 'erro' e a mensagem 'Comando não reconhecido.'.\n"
+            "- Corrija erros de digitação ou transcrição no nome do item. Por exemplo, 'arros' deve virar 'arroz'.\n\n"
+            "Exemplos:\n"
+            "1. Texto de entrada: \"adicionar dois quilos e meio de arroz\"\n"
+            "   JSON de saída: {\"acao\": \"adicionar\", \"quantidade\": 2.5, \"unidade\": \"Quilos (Kg)\", \"item\": \"arroz\"}\n"
+            "2. Texto de entrada: \"tira 500g de farinha\"\n"
+            "   JSON de saída: {\"acao\": \"remover\", \"quantidade\": 500, \"unidade\": \"Gramas (g)\", \"item\": \"farinha\"}\n"
+            "3. Texto de entrada: \"coloca 3 ovos\"\n"
+            "   JSON de saída: {\"acao\": \"adicionar\", \"quantidade\": 3, \"unidade\": \"Unidades\", \"item\": \"ovos\"}\n"
+            "4. Texto de entrada: \"qual a previsão do tempo\"\n"
+            "   JSON de saída: {\"erro\": \"Comando não reconhecido.\"}\n"
+            "5. Texto de entrada: \"remover um litro de leiti\"\n"
+            "   JSON de saída: {\"acao\": \"remover\", \"quantidade\": 1, \"unidade\": \"Litros (L)\", \"item\": \"leite\"}\n\n"
+            f"Agora, processe o seguinte texto e retorne APENAS o objeto JSON:\n"
+            f"'{texto}'"
+        )
+
+        try:
+            print("Log (Voz/Gemini): Enviando prompt para a API.")
+            response = model.generate_content(prompt)
+            cleaned_response = response.text.strip().replace("```json", "").replace("```", "").strip()
+            print(f"Log (Voz/Gemini): Resposta recebida:\n{cleaned_response}")
+            
+            comando = json.loads(cleaned_response)
+            return comando
+            
+        except Exception as e:
+            print(f"Erro ao processar comando com Gemini: {e}")
+            return {"erro": "Falha ao contatar a IA."}
+
+    def _executar_acao_db(self, comando):
+        """Executa a ação de adicionar ou remover item no banco de dados."""
+        if not comando: return
+        name, qty_input, selected_unit = comando['item'], comando['quantidade'], comando['unidade']
+        qty_base, unit_base = self.converter_para_base(qty_input, selected_unit)
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM produtos WHERE nome_produto = %s", (name,))
+            result = cursor.fetchone()
+            if comando['acao'] == 'adicionar':
+                if result:
+                    if result['tipo_volume'] != unit_base:
+                        messagebox.showerror("Erro de Voz", f"Unidade incompatível. '{name}' é medido em '{result['tipo_volume']}'.")
+                        return
+                    new_qty = float(result['quantidade_produto']) + qty_base
+                    cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s", (new_qty, name))
+                else:
+                    nutritional_data = get_nutritional_info_from_api(name) or {}
+                    keys = ["valor_energetico_kcal", "acucares_totais_g", "acucares_adicionados_g", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
+                    query = f"INSERT INTO produtos (nome_produto, quantidade_produto, tipo_volume, {', '.join(keys)}) VALUES (%s, %s, %s, {', '.join(['%s']*len(keys))})"
+                    values = (name, qty_base, unit_base) + tuple(nutritional_data.get(k) for k in keys)
+                    cursor.execute(query, values)
+            elif comando['acao'] == 'remover':
+                if not result:
+                    messagebox.showerror("Erro de Voz", f"Item '{name}' não encontrado no estoque."); return
+                stock_qty_base = float(result["quantidade_produto"])
+                if result['tipo_volume'] != unit_base:
+                     messagebox.showerror("Erro de Voz", f"Unidade incompatível. '{name}' é medido em '{result['tipo_volume']}'."); return
+                if stock_qty_base < qty_base:
+                    messagebox.showwarning("Erro de Voz", f"Quantidade insuficiente para remover de '{name}'."); return
+                nova_quantidade = stock_qty_base - qty_base
+                if abs(nova_quantidade) < 0.001: cursor.execute("DELETE FROM produtos WHERE nome_produto = %s", (name,))
+                else: cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s", (nova_quantidade, name))
+            self.connection.commit()
+            cursor.close()
+            self._refresh_item_list()
+            self.after(0, self._show_voice_feedback, "Estoque atualizado!")
+            self._close_voice_feedback()
+        except Error as e:
+            self.connection.rollback()
+            self.after(0, self._show_voice_feedback, "Erro no banco de dados.")
+            self._close_voice_feedback(3000)
+            messagebox.showerror("Erro de BD", f"Falha na operação por voz: {e}")
+
+    # --- FIM DA SEÇÃO DE COMANDO DE VOZ ---
+
     def _validate_numeric_input(self, value_if_allowed):
-        """Função 'fiscal' que permite apenas dígitos, uma vírgula ou um ponto."""
-        if value_if_allowed == "":
-            return True
-        # Verifica se o valor pode ser convertido para float, aceitando tanto '.' quanto ','
+        if value_if_allowed == "": return True
         try:
             float(value_if_allowed.replace(',', '.'))
             return True
@@ -146,12 +354,10 @@ class InventoryApp(ctk.CTk):
             return False
 
     def open_history_window(self):
-        """Abre a tela de histórico de uso de ingredientes."""
         print("Abrindo a tela de histórico (gui_historico.py).")
         if self.connection and self.connection.is_connected():
             self.connection.close()
             print("Log (gui3): Conexão com o BD fechada antes de abrir o histórico.")
-        
         self.destroy()
         try:
             subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui_historico.py")])
@@ -215,7 +421,6 @@ class InventoryApp(ctk.CTk):
         dialog.after(100, dialog.lift)
     
     def _try_update_nutritional_info_if_missing(self, name, cursor):
-        """Verifica se ALGUM campo nutricional está faltando e busca na API se necessário."""
         try:
             campos_nutricionais = "valor_energetico_kcal, acucares_totais_g, acucares_adicionados_g, carboidratos_g, proteinas_g, gorduras_totais_g, gorduras_saturadas_g, fibra_alimentar_g, sodio_g"
             cursor.execute(f"SELECT {campos_nutricionais} FROM produtos WHERE nome_produto = %s", (name,))
@@ -239,39 +444,26 @@ class InventoryApp(ctk.CTk):
 
     def converter_para_base(self, quantidade, unidade):
         unidade_lower = unidade.lower()
-
-        # Converte para GRAMAS (g)
         if 'kg' in unidade_lower or 'quilos' in unidade_lower:
             return (float(quantidade) * 1000, 'Gramas')
         elif 'g' in unidade_lower or 'gramas' in unidade_lower:
             return (float(quantidade), 'Gramas')
-
-        # Converte para MILILITROS (ml)
         if 'ml' in unidade_lower or 'mililitros' in unidade_lower:
             return (float(quantidade), 'Mililitros')
         elif 'l' in unidade_lower or 'litros' in unidade_lower:
             return (float(quantidade) * 1000, 'Mililitros')
-        
-        # Mantém UNIDADES
         if 'unidades' in unidade_lower:
             return (int(quantidade), 'Unidades')
-        
-        # Fallback (caso inesperado)
         return (float(quantidade), unidade)
     
     def formatar_exibicao(self, quantidade, unidade):
         qtd_float = float(quantidade)
-
         if unidade == 'Gramas' and qtd_float >= 1000:
             qtd_convertida = qtd_float / 1000
-            # {:g} remove zeros insignificantes (ex: 2.0 -> 2, mas 2.1 -> 2,1)
             return ("{:g}".format(qtd_convertida).replace('.', ','), "Kg")
-        
         if unidade == 'Mililitros' and qtd_float >= 1000:
             qtd_convertida = qtd_float / 1000
             return ("{:g}".format(qtd_convertida).replace('.', ','), "L")
-
-        # Se não precisar converter, apenas formata o número original
         return ("{:g}".format(qtd_float).replace('.', ','), unidade)
     
     def go_to_gui1(self):
@@ -282,30 +474,22 @@ class InventoryApp(ctk.CTk):
         self.destroy()
         try:
             subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui1.py")])
-        except FileNotFoundError:
-            messagebox.showerror("Erro", f"Não foi possível encontrar gui1.py em {OUTPUT_PATH}")
         except Exception as e:
             messagebox.showerror("Erro", f"Ocorreu um erro ao tentar abrir gui1.py: {e}")
 
     def load_stock_from_db(self, search_term=""):
-        """ Busca os produtos do BD, com filtro opcional, e preenche o dicionário self.local_stock. """
         try:
             if not self.connection.is_connected():
                 self.connection.reconnect()
-            
             cursor = self.connection.cursor(dictionary=True)
-            base_query = "SELECT * FROM produtos"
-            
             if search_term:
                 query = "SELECT * FROM produtos WHERE nome_produto LIKE %s ORDER BY nome_produto ASC"
                 cursor.execute(query, (f"%{search_term}%",))
             else:
                 query = "SELECT * FROM produtos ORDER BY nome_produto ASC"
                 cursor.execute(query)
-
             products_from_db = cursor.fetchall()
             self.local_stock.clear()
-
             for product in products_from_db:
                 self.local_stock[product['nome_produto']] = product
             cursor.close()
@@ -315,7 +499,6 @@ class InventoryApp(ctk.CTk):
             self.local_stock = {}
 
     def _on_search_typing(self, event=None):
-        """ Chamado sempre que o usuário digita na barra de pesquisa. """
         search_term = self.search_entry.get().strip()
         self._refresh_item_list(search_term)
 
@@ -332,9 +515,7 @@ class InventoryApp(ctk.CTk):
         self.content_frame = ctk.CTkFrame(self, fg_color="#F5F5F5", corner_radius=0)
         self.content_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
         self.content_frame.grid_columnconfigure(0, weight=1)
-        self.content_frame.grid_rowconfigure(0, weight=0) 
-        self.content_frame.grid_rowconfigure(1, weight=0) 
-        self.content_frame.grid_rowconfigure(2, weight=1) 
+        self.content_frame.grid_rowconfigure(0, weight=0); self.content_frame.grid_rowconfigure(1, weight=0); self.content_frame.grid_rowconfigure(3, weight=1) 
 
         self.search_entry = ctk.CTkEntry(self.content_frame, placeholder_text="🔎 Pesquisar item...", font=self.item_name_font, height=40, corner_radius=10, border_width=1, border_color="#0084FF")
         self.search_entry.grid(row=0, column=0, sticky="ew", padx=20, pady=(15, 5))
@@ -342,25 +523,33 @@ class InventoryApp(ctk.CTk):
 
         self.action_buttons_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.action_buttons_frame.grid(row=1, column=0, pady=(5, 10))
-        self.action_buttons_frame.grid_columnconfigure(0, weight=1)
-        self.action_buttons_frame.grid_columnconfigure(1, weight=0)
-        self.action_buttons_frame.grid_columnconfigure(2, weight=0)
-        self.action_buttons_frame.grid_columnconfigure(3, weight=0)
-        self.action_buttons_frame.grid_columnconfigure(4, weight=1)
+        self.action_buttons_frame.grid_columnconfigure(0, weight=1); self.action_buttons_frame.grid_columnconfigure(1, weight=0) 
+        self.action_buttons_frame.grid_columnconfigure(2, weight=0); self.action_buttons_frame.grid_columnconfigure(3, weight=0)
+        self.action_buttons_frame.grid_columnconfigure(4, weight=1) 
         
-        up_arrow_image = None; down_arrow_image = None
-        try: pil_up_arrow = Image.open(UP_ARROW_IMAGE_PATH).resize((40, 40), Image.LANCZOS).convert("RGBA"); up_arrow_image = ctk.CTkImage(light_image=pil_up_arrow, dark_image=pil_up_arrow, size=(40, 40))
+        up_arrow_image = None; down_arrow_image = None; mic_image = None
+        try: pil_up_arrow = Image.open(UP_ARROW_IMAGE_PATH).resize((40, 40), Image.LANCZOS); up_arrow_image = ctk.CTkImage(light_image=pil_up_arrow, size=(40, 40))
         except Exception as e: print(f"Erro ao carregar 'up_arrow.png': {e}")
-        try: pil_down_arrow = Image.open(DOWN_ARROW_IMAGE_PATH).resize((40, 40), Image.LANCZOS).convert("RGBA"); down_arrow_image = ctk.CTkImage(light_image=pil_down_arrow, dark_image=pil_down_arrow, size=(40, 40))
+        try: pil_down_arrow = Image.open(DOWN_ARROW_IMAGE_PATH).resize((40, 40), Image.LANCZOS); down_arrow_image = ctk.CTkImage(light_image=pil_down_arrow, size=(40, 40))
         except Exception as e: print(f"Erro ao carregar 'down_arrow.png': {e}")
+        try: pil_mic = Image.open(MIC_IMAGE_PATH).resize((40, 40), Image.LANCZOS); mic_image = ctk.CTkImage(light_image=pil_mic, size=(40, 40))
+        except Exception as e: print(f"Erro ao carregar 'mic_icon.png': {e}")
 
-        self.btn_up = ctk.CTkButton(self.action_buttons_frame, text="" if up_arrow_image else "↑", image=up_arrow_image, width=50, height=50, fg_color="#0084FF", hover_color="#0066CC", corner_radius=12, command=self.open_add_item_dialog, font=self.header_font); self.btn_up.grid(row=0, column=1, padx=10, pady=5)
-        ctk.CTkLabel(self.action_buttons_frame, text="Gerenciar Itens", font=self.header_font, text_color="#333333", bg_color="transparent").grid(row=0, column=2, padx=10, pady=5)
-        self.btn_remove = ctk.CTkButton(self.action_buttons_frame, text="" if down_arrow_image else "↓", image=down_arrow_image, width=50, height=50, fg_color="#0084FF", hover_color="#0066CC", corner_radius=12, command=self.open_remove_item_dialog, font=self.header_font); self.btn_remove.grid(row=0, column=3, padx=10, pady=5)
-        self.btn_history = ctk.CTkButton(self.action_buttons_frame, text="Histórico de Uso", height=40, fg_color="#5856D6", hover_color="#4341A7", corner_radius=10, command=self.open_history_window, font=self.header_font)
-        self.btn_history.grid(row=1, column=1, columnspan=3, pady=(5,10), padx=10, sticky="ew")
+        self.btn_up = ctk.CTkButton(self.action_buttons_frame, text="" if up_arrow_image else "ADD", image=up_arrow_image, width=50, height=50, fg_color="#0084FF", hover_color="#0066CC", corner_radius=12, command=self.open_add_item_dialog); self.btn_up.grid(row=0, column=1, padx=10, pady=5)
+        
+        self.btn_voice = ctk.CTkButton(self.action_buttons_frame, text="" if mic_image else "VOZ", image=mic_image, width=60, height=60, fg_color="#5856D6", hover_color="#4341A7", corner_radius=30); self.btn_voice.grid(row=0, column=2, padx=10, pady=5)
+        self.btn_voice.bind("<ButtonPress-1>", self._start_recording)
+        # O evento de soltar o botão agora é gerenciado dinamicamente
+
+        self.btn_remove = ctk.CTkButton(self.action_buttons_frame, text="" if down_arrow_image else "REM", image=down_arrow_image, width=50, height=50, fg_color="#0084FF", hover_color="#0066CC", corner_radius=12, command=self.open_remove_item_dialog); self.btn_remove.grid(row=0, column=3, padx=10, pady=5)
+        
+        ctk.CTkLabel(self.action_buttons_frame, text="Adicionar  |  Por Voz  |  Remover", font=self.header_font, text_color="#333333").grid(row=1, column=1, columnspan=3, pady=(0,10))
+
+        self.btn_history = ctk.CTkButton(self.content_frame, text="Histórico de Uso", height=40, fg_color="#95a5a6", hover_color="#7F8C8D", corner_radius=10, command=self.open_history_window, font=self.header_font)
+        self.btn_history.grid(row=2, column=0, pady=(5,10), padx=20, sticky="ew")
+
         self.items_container = ctk.CTkScrollableFrame(self.content_frame, fg_color="#F5F5F5", corner_radius=0)
-        self.items_container.grid(row=2, column=0, sticky="nsew", padx=10, pady=(5, 2))
+        self.items_container.grid(row=3, column=0, sticky="nsew", padx=10, pady=(5, 2))
         self.items_container.grid_columnconfigure(0, weight=1)
 
         self._refresh_item_list()
@@ -369,59 +558,31 @@ class InventoryApp(ctk.CTk):
         self.load_stock_from_db(search_term)
         for widget in self.items_container.winfo_children():
             widget.destroy()
-        
         if not self.local_stock:
             msg = "Nenhum item encontrado." if search_term else "Seu estoque está vazio.\nAdicione um item para começar."
             ctk.CTkLabel(self.items_container, text=msg, font=self.item_name_font, text_color="#666666").pack(pady=30)
         else:
-            item_row = 0
-            for name, data in self.local_stock.items():
-                self._add_item_widget(name, data["quantidade_produto"], data["tipo_volume"], item_row)
-                item_row += 1
-        
+            for i, (name, data) in enumerate(self.local_stock.items()):
+                self._add_item_widget(name, data["quantidade_produto"], data["tipo_volume"], i)
         self.items_container.update_idletasks()
 
     def _add_item_widget(self, name, qty, unit, row_index):
-
-        item_color = "#0084FF"  # Azul Padrão
-        text_color = "white"     # Texto Branco Padrão
-        is_low_stock = False
-
+        item_color = "#0084FF"; text_color = "white"; is_low_stock = False
         try:
             numeric_qty = float(qty)
-            
-            # As regras de alerta são agora baseadas nas unidades REAIS do nosso banco de dados.
-            if unit == 'Unidades' and numeric_qty <= 2:
+            if (unit == 'Unidades' and numeric_qty <= 2) or \
+               (unit == 'Gramas' and numeric_qty <= 500) or \
+               (unit == 'Mililitros' and numeric_qty <= 500):
                 is_low_stock = True
-            elif unit == 'Gramas' and numeric_qty <= 500: # Regra unificada: <= 500g é baixo estoque
-                is_low_stock = True
-            elif unit == 'Mililitros' and numeric_qty <= 500: # Regra unificada: <= 500ml é baixo estoque
-                is_low_stock = True
-
-            if is_low_stock:
-                item_color = "#FFA500"  # Laranja para alerta
-                text_color = "#000000"  # Texto preto para legibilidade no laranja
-        
-        except (ValueError, TypeError):
-            # Se a quantidade não for um número, usa as cores padrão.
-            pass
-
+            if is_low_stock: item_color = "#FFA500"; text_color = "#000000"
+        except (ValueError, TypeError): pass
         item_frame = ctk.CTkFrame(self.items_container, fg_color=item_color, corner_radius=12, height=60)
-        item_frame.grid(row=row_index, column=0, sticky="ew", pady=5, padx=2)
-        item_frame.grid_propagate(False)
-        
-        item_frame.grid_columnconfigure(0, weight=1)
-        item_frame.grid_columnconfigure(1, weight=0)
-
+        item_frame.grid(row=row_index, column=0, sticky="ew", pady=5, padx=2); item_frame.grid_propagate(False)
+        item_frame.grid_columnconfigure(0, weight=1); item_frame.grid_columnconfigure(1, weight=0)
         ctk.CTkLabel(item_frame, text=name, fg_color="transparent", text_color=text_color, font=self.item_name_font, anchor="w").grid(row=0, column=0, padx=15, pady=10, sticky="ew")
-        
-        # A nossa lógica de formatação visual continua funcionando perfeitamente!
         formatted_qtd, display_unit = self.formatar_exibicao(qty, unit)
-        qty_text_display = f"{formatted_qtd} {display_unit}"
-
-        qty_label = ctk.CTkLabel(item_frame, text=qty_text_display, fg_color="transparent", text_color=text_color, font=self.qty_font)
+        qty_label = ctk.CTkLabel(item_frame, text=f"{formatted_qtd} {display_unit}", fg_color="transparent", text_color=text_color, font=self.qty_font)
         qty_label.grid(row=0, column=1, padx=(5, 15), pady=10, sticky="e")
-
         for widget in [item_frame, item_frame.winfo_children()[0], qty_label]:
             widget.bind("<Button-1>", lambda event, n=name: self._show_nutritional_info(n))
 
@@ -429,209 +590,101 @@ class InventoryApp(ctk.CTk):
         self.update_idletasks(); parent_x = self.winfo_x(); parent_y = self.winfo_y(); parent_width = self.winfo_width(); parent_height = self.winfo_height(); center_x = parent_x + (parent_width // 2) - (width // 2); center_y = parent_y + (parent_height // 2) - (height // 2); dialog.geometry(f"{width}x{height}+{center_x}+{center_y}")
 
     def check_low_stock_on_startup(self):
-        """Verifica o estoque e exibe um pop-up de alerta se necessário."""
         low_stock_items = []
         for name, data in self.local_stock.items():
             try:
                 numeric_qty = float(data["quantidade_produto"])
                 unit = data["tipo_volume"]
-                is_low = False
-                if unit == 'Unidades' and numeric_qty <= 2:
-                    is_low = True
-                elif unit == 'Gramas' and numeric_qty <= 500:
-                    is_low = True
-                elif unit == 'Mililitros' and numeric_qty <= 500:
-                    is_low = True
-                
+                is_low = (unit == 'Unidades' and numeric_qty <= 2) or \
+                         (unit == 'Gramas' and numeric_qty <= 500) or \
+                         (unit == 'Mililitros' and numeric_qty <= 500)
                 if is_low:
                     formatted_qty, display_unit = self.formatar_exibicao(numeric_qty, unit)
                     low_stock_items.append(f"- {name}: {formatted_qty} {display_unit}")
-            except (ValueError, TypeError):
-                continue
-        
+            except (ValueError, TypeError): continue
         if low_stock_items:
             message = "Os seguintes itens estão com baixo estoque:\n\n" + "\n".join(low_stock_items)
-            
-            # Criando um TopLevel para o pop-up
-            dialog = ctk.CTkToplevel(self)
-            dialog.title("Alerta de Estoque Baixo")
-            dialog.attributes("-topmost", True) # Mantém o pop-up na frente
-            
-            # Frame principal do pop-up
-            main_frame = ctk.CTkFrame(dialog, corner_radius=10)
-            main_frame.pack(padx=20, pady=20, fill="both", expand=True)
-
-            # Ícone de alerta (opcional, mas melhora a UX)
-            try:
-                # Adapte o caminho para um ícone de sua preferência
-                alert_icon_path = OUTPUT_PATH / "assets" / "geral" / "alert_icon.png" 
-                pil_alert_icon = Image.open(alert_icon_path).resize((40, 40), Image.LANCZOS)
-                alert_icon = ctk.CTkImage(light_image=pil_alert_icon, size=(40, 40))
-                icon_label = ctk.CTkLabel(main_frame, image=alert_icon, text="")
-                icon_label.pack(pady=(0, 10))
-            except Exception as e:
-                print(f"Ícone de alerta não encontrado: {e}")
-
-            # Mensagem de texto
-            label = ctk.CTkLabel(main_frame, text=message, font=self.item_name_font, justify="left")
-            label.pack(pady=(0, 15), padx=10)
-
-            # Botão para fechar
-            ok_button = ctk.CTkButton(main_frame, text="OK", command=dialog.destroy, width=100)
-            ok_button.pack(pady=(0, 10))
-            
-            # Centraliza o pop-up
-            self.update_idletasks()
-            dialog_width = 400
-            dialog_height = 200 + (len(low_stock_items) * 20) # Ajusta a altura dinamicamente
-            self._center_dialog(dialog, dialog_width, dialog_height)
-            
-            dialog.transient(self)
-            dialog.grab_set()
-
+            messagebox.showwarning("Alerta de Estoque Baixo", message)
 
     def open_add_item_dialog(self):
         self._refresh_item_list() 
         item_names = list(self.local_stock.keys())
-
-        dialog_width, dialog_height = 360, 320 # Altura ajustada para caber os botões
         dialog = ctk.CTkToplevel(self)
-        dialog.title("Adicionar Item"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, dialog_width, dialog_height)
+        dialog.title("Adicionar Item"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, 360, 320)
         
         form_frame = ctk.CTkFrame(dialog, fg_color="transparent"); form_frame.pack(fill="both", expand=True, padx=20, pady=15); form_frame.grid_columnconfigure(1, weight=1)
-        
         unidade_var = ctk.StringVar(value=self.measurement_units[0])
-        unidade_combobox = ctk.CTkComboBox(form_frame, values=self.measurement_units, variable=unidade_var, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", button_color="#0084FF", button_hover_color="#0066CC", state="readonly", width=150)
+        unidade_combobox = ctk.CTkComboBox(form_frame, values=self.measurement_units, variable=unidade_var, font=self.dialog_entry_font, corner_radius=8, state="readonly", width=150)
         
         def on_item_select_for_add(selected_item_name):
             normalized_name = selected_item_name.strip().capitalize()
             if normalized_name in self.local_stock:
-                # CORREÇÃO DO KEYERROR: "unidade" -> "tipo_volume"
                 base_unit = self.local_stock[normalized_name]["tipo_volume"]
-                if base_unit == "Gramas":
-                    unidade_combobox.configure(values=self.mass_units); unidade_var.set(self.mass_units[0])
-                elif base_unit == "Mililitros":
-                    unidade_combobox.configure(values=self.volume_units); unidade_var.set(self.volume_units[0])
-                elif base_unit == "Unidades":
-                    unidade_combobox.configure(values=self.unit_units); unidade_var.set(self.unit_units[0])
-            else:
-                unidade_combobox.configure(values=self.measurement_units); unidade_var.set(self.measurement_units[0])
+                if base_unit == "Gramas": unidade_combobox.configure(values=self.mass_units); unidade_var.set(self.mass_units[0])
+                elif base_unit == "Mililitros": unidade_combobox.configure(values=self.volume_units); unidade_var.set(self.volume_units[0])
+                else: unidade_combobox.configure(values=self.unit_units); unidade_var.set(self.unit_units[0])
+            else: unidade_combobox.configure(values=self.measurement_units); unidade_var.set(self.measurement_units[0])
         
         ctk.CTkLabel(form_frame, text="Nome do Item:", font=self.dialog_label_font).grid(row=0, column=0, columnspan=2, sticky="w")
-        ctk.CTkLabel(form_frame, text="Digite um novo nome ou selecione um existente", font=self.dialog_hint_font, text_color="#666666").grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5))
-        nome_combobox = ctk.CTkComboBox(form_frame, values=item_names, width=200, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", command=on_item_select_for_add)
-        nome_combobox.grid(row=2, column=0, columnspan=2, pady=(0,10), sticky="ew")
-        nome_combobox.bind('<KeyRelease>', lambda event: on_item_select_for_add(nome_combobox.get()))
-        nome_combobox.set("")
-        ctk.CTkLabel(form_frame, text="Quantidade:", font=self.dialog_label_font).grid(row=3, column=0, sticky="w", pady=5)
-        qtd_entry = ctk.CTkEntry(form_frame, width=100, font=self.dialog_entry_font, corner_radius=8, border_color="#0084FF", fg_color="white", validate="key", validatecommand=self.vcmd)
-        qtd_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
-        ctk.CTkLabel(form_frame, text="Unidade:", font=self.dialog_label_font).grid(row=4, column=0, sticky="w", pady=5)
-        unidade_combobox.grid(row=4, column=1, padx=5, pady=5, sticky="w")
+        nome_combobox = ctk.CTkComboBox(form_frame, values=item_names, width=200, font=self.dialog_entry_font, corner_radius=8, command=on_item_select_for_add)
+        nome_combobox.grid(row=1, column=0, columnspan=2, pady=(0,10), sticky="ew")
+        nome_combobox.bind('<KeyRelease>', lambda event: on_item_select_for_add(nome_combobox.get())); nome_combobox.set("")
+        ctk.CTkLabel(form_frame, text="Quantidade:", font=self.dialog_label_font).grid(row=2, column=0, sticky="w", pady=5)
+        qtd_entry = ctk.CTkEntry(form_frame, width=100, font=self.dialog_entry_font, corner_radius=8, validate="key", validatecommand=self.vcmd)
+        qtd_entry.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        ctk.CTkLabel(form_frame, text="Unidade:", font=self.dialog_label_font).grid(row=3, column=0, sticky="w", pady=5)
+        unidade_combobox.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
         def _save_item_action():
-            # (O conteúdo desta função continua o mesmo, sem alterações)
-            name_raw = nome_combobox.get().strip()
-            if not name_raw: messagebox.showerror("Erro", "Por favor, digite um nome de item.", parent=dialog); return
-            name = name_raw.capitalize()
-            qty_str = qtd_entry.get().strip().replace(',', '.')
-            if not qty_str: messagebox.showerror("Erro", "Por favor, preencha a quantidade.", parent=dialog); return
+            name_raw = nome_combobox.get().strip(); qty_str = qtd_entry.get().strip().replace(',', '.')
+            if not name_raw or not qty_str: messagebox.showerror("Erro", "Preencha todos os campos.", parent=dialog); return
             try:
-                qty_input = float(qty_str)
-                if qty_input <= 0: raise ValueError()
-            except (ValueError, TypeError): messagebox.showerror("Erro", "Quantidade inválida.", parent=dialog); return
-            selected_unit = unidade_var.get()
-            qty_base, unit_base = self.converter_para_base(qty_input, selected_unit)
-            try:
-                cursor = self.connection.cursor(dictionary=True)
-                cursor.execute("SELECT * FROM produtos WHERE nome_produto = %s", (name,))
-                result = cursor.fetchone()
-                if result:
-                    if result['tipo_volume'] != unit_base:
-                        messagebox.showerror("Erro", f"Unidade incompatível. O item é medido em '{result['tipo_volume']}'.", parent=dialog); cursor.close(); return
-                    new_qty = float(result['quantidade_produto']) + qty_base
-                    cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s", (new_qty, name))
-                else:
-                    nutritional_data = get_nutritional_info_from_api(name)
-                    if not nutritional_data:
-                        msg = "Não foi possível obter dados nutricionais. Adicionar mesmo assim?"
-                        if not GOOGLE_API_KEY: msg = "API Key não configurada. Adicionar sem dados nutricionais?"
-                        if not messagebox.askyesno("API indisponível", msg, parent=dialog): cursor.close(); return
-                        nutritional_data = {}
-                    keys = ["valor_energetico_kcal", "acucares_totais_g", "acucares_adicionados_g", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
-                    query = f"INSERT INTO produtos (nome_produto, quantidade_produto, tipo_volume, {', '.join(keys)}) VALUES (%s, %s, %s, {', '.join(['%s']*len(keys))})"
-                    values = (name, qty_base, unit_base) + tuple(nutritional_data.get(k) for k in keys)
-                    cursor.execute(query, values)
-                self.connection.commit(); cursor.close(); self._refresh_item_list(); dialog.destroy(); messagebox.showinfo("Sucesso!", f"'{name}' salvo no estoque.", parent=self)
-            except Error as e: self.connection.rollback(); messagebox.showerror("Erro de BD", f"Falha ao salvar o item: {e}", parent=dialog)
-        
-        # ADIÇÃO DOS BOTÕES: Este bloco cria o frame e os botões de ação
-        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=20, pady=(15, 10))
-        save_btn = ctk.CTkButton(btn_frame, text="Salvar", command=_save_item_action, font=self.dialog_button_font, fg_color="#0084FF", hover_color="#0066CC", corner_radius=12, height=35)
-        save_btn.pack(side="right", padx=5)
-        cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D", corner_radius=12, height=35)
-        cancel_btn.pack(side="right", padx=5)
+                comando = {"acao": "adicionar", "quantidade": float(qty_str), "unidade": unidade_var.get(), "item": name_raw}
+                self._executar_acao_db(comando)
+                dialog.destroy()
+            except ValueError: messagebox.showerror("Erro", "Quantidade inválida.", parent=dialog)
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent"); btn_frame.pack(fill="x", padx=20, pady=(15, 10))
+        save_btn = ctk.CTkButton(btn_frame, text="Salvar", command=_save_item_action, font=self.dialog_button_font, fg_color="#0084FF", hover_color="#0066CC"); save_btn.pack(side="right")
+        cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D"); cancel_btn.pack(side="right", padx=10)
         nome_combobox.focus_set()
 
     def open_remove_item_dialog(self):
         self._refresh_item_list()
-        if not self.local_stock:
-            messagebox.showinfo(title="Estoque Vazio", message="Não há itens para remover.", parent=self); return
-        dialog_width, dialog_height = 360, 280
-        dialog = ctk.CTkToplevel(self); dialog.title("Remover Itens"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, dialog_width, dialog_height)
+        if not self.local_stock: messagebox.showinfo(title="Estoque Vazio", message="Não há itens para remover."); return
+        dialog = ctk.CTkToplevel(self); dialog.title("Remover Itens"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, 360, 280)
         form_frame = ctk.CTkFrame(dialog, fg_color="transparent"); form_frame.pack(fill="both", expand=True, padx=20, pady=15); form_frame.grid_columnconfigure(1, weight=1)
         
-        item_names = list(self.local_stock.keys())
-        item_var = ctk.StringVar(value=item_names[0] if item_names else ""); unidade_remover_var = ctk.StringVar(value=self.measurement_units[0])
+        item_names = list(self.local_stock.keys()); item_var = ctk.StringVar(value=item_names[0]); unidade_remover_var = ctk.StringVar()
 
         def on_item_select(selected_item_name):
-            if selected_item_name in self.local_stock:
-                # CORREÇÃO 1 DO KEYERROR: "unidade" -> "tipo_volume"
-                unit = self.local_stock[selected_item_name]["tipo_volume"]
-                if unit == "Gramas": unidade_remover_combobox.configure(values=self.mass_units); unidade_remover_var.set(self.mass_units[0])
-                elif unit == "Mililitros": unidade_remover_combobox.configure(values=self.volume_units); unidade_remover_var.set(self.volume_units[0])
-                else: unidade_remover_combobox.configure(values=self.unit_units); unidade_remover_var.set(self.unit_units[0])
-            else:
-                unidade_remover_combobox.configure(values=self.measurement_units); unidade_remover_var.set(self.measurement_units[0])
+            unit = self.local_stock[selected_item_name]["tipo_volume"]
+            if unit == "Gramas": unidade_remover_combobox.configure(values=self.mass_units); unidade_remover_var.set(self.mass_units[0])
+            elif unit == "Mililitros": unidade_remover_combobox.configure(values=self.volume_units); unidade_remover_var.set(self.volume_units[0])
+            else: unidade_remover_combobox.configure(values=self.unit_units); unidade_remover_var.set(self.unit_units[0])
 
         ctk.CTkLabel(form_frame, text="Item:", font=self.dialog_label_font).grid(row=0, column=0, sticky="w", pady=10)
-        item_combobox = ctk.CTkComboBox(form_frame, variable=item_var, values=item_names, font=self.dialog_entry_font, corner_radius=8, state="readonly" if item_names else "disabled", command=on_item_select); item_combobox.grid(row=0, column=1, padx=5, pady=10, sticky="ew")
+        item_combobox = ctk.CTkComboBox(form_frame, variable=item_var, values=item_names, font=self.dialog_entry_font, state="readonly", command=on_item_select); item_combobox.grid(row=0, column=1, sticky="ew", padx=5)
         ctk.CTkLabel(form_frame, text="Quantidade:", font=self.dialog_label_font).grid(row=1, column=0, sticky="w", pady=10)
-        qtd_entry = ctk.CTkEntry(form_frame, font=self.dialog_entry_font, corner_radius=8, validate="key", validatecommand=self.vcmd); qtd_entry.grid(row=1, column=1, padx=5, pady=10, sticky="ew")
+        qtd_entry = ctk.CTkEntry(form_frame, font=self.dialog_entry_font, validate="key", validatecommand=self.vcmd); qtd_entry.grid(row=1, column=1, sticky="ew", padx=5)
         ctk.CTkLabel(form_frame, text="Unidade:", font=self.dialog_label_font).grid(row=2, column=0, sticky="w", pady=10)
-        unidade_remover_combobox = ctk.CTkComboBox(form_frame, values=self.measurement_units, variable=unidade_remover_var, font=self.dialog_entry_font, corner_radius=8, state="readonly", width=150); unidade_remover_combobox.grid(row=2, column=1, padx=5, pady=10, sticky="w")
+        unidade_remover_combobox = ctk.CTkComboBox(form_frame, variable=unidade_remover_var, font=self.dialog_entry_font, state="readonly", width=150); unidade_remover_combobox.grid(row=2, column=1, sticky="w", padx=5)
         on_item_select(item_combobox.get())
         
         def _remove_item_action():
-            name = item_var.get(); qty_to_remove_str = qtd_entry.get().strip().replace(',', '.'); unit_to_remove = unidade_remover_var.get()
-            if not name or not qty_to_remove_str: messagebox.showerror("Erro", "Preencha todos os campos.", parent=dialog); return
+            name = item_var.get(); qty_str = qtd_entry.get().strip().replace(',', '.')
+            if not name or not qty_str: messagebox.showerror("Erro", "Preencha todos os campos.", parent=dialog); return
             try:
-                qty_to_remove_input = float(qty_to_remove_str);
-                if qty_to_remove_input <= 0: raise ValueError()
-            except ValueError: messagebox.showerror("Erro", "Quantidade inválida.", parent=dialog); return
-            qty_to_remove_base, unidade_base_remocao = self.converter_para_base(qty_to_remove_input, unit_to_remove)
-            
-            # CORREÇÃO 2 DO KEYERROR: "qtd" -> "quantidade_produto", "unidade" -> "tipo_volume"
-            stock_data = self.local_stock[name]
-            stock_qty_base = float(stock_data["quantidade_produto"])
-            stock_unit_base = stock_data["tipo_volume"]
-            
-            if stock_unit_base != unidade_base_remocao: messagebox.showerror("Erro", f"Incompatível: Estoque em {stock_unit_base}.", parent=dialog); return
-            if stock_qty_base < qty_to_remove_base: messagebox.showwarning("Aviso", f"Qtd. insuficiente. Disponível: {stock_qty_base:g} {stock_unit_base}", parent=dialog); return
-            try:
-                cursor = self.connection.cursor()
-                nova_quantidade = stock_qty_base - qty_to_remove_base
-                if abs(nova_quantidade) < 0.001: query = "DELETE FROM produtos WHERE nome_produto = %s"; cursor.execute(query, (name,))
-                else: query = "UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s"; cursor.execute(query, (nova_quantidade, name))
-                self.connection.commit(); cursor.close(); self._refresh_item_list(self.search_entry.get().strip()); dialog.destroy(); messagebox.showinfo("Sucesso!", f"Operação realizada.", parent=self)
-            except Error as e: messagebox.showerror("Erro de BD", f"Falha ao remover item: {e}", parent=dialog)
+                comando = {"acao": "remover", "quantidade": float(qty_str), "unidade": unidade_remover_var.get(), "item": name}
+                self._executar_acao_db(comando)
+                dialog.destroy()
+            except ValueError: messagebox.showerror("Erro", "Quantidade inválida.", parent=dialog)
         
-        # ADIÇÃO DOS BOTÕES: Este bloco cria o frame e os botões de ação
         btn_frame = ctk.CTkFrame(dialog, fg_color="transparent"); btn_frame.pack(fill="x", padx=20, pady=(20,10))
-        remove_btn = ctk.CTkButton(btn_frame, text="Remover", command=_remove_item_action, font=self.dialog_button_font, fg_color="#f44336", hover_color="#CC3322", corner_radius=12, height=35); remove_btn.pack(side="right", padx=5)
-        cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D", corner_radius=12, height=35); cancel_btn.pack(side="right", padx=5)
-        if item_names: qtd_entry.focus_set()
+        remove_btn = ctk.CTkButton(btn_frame, text="Remover", command=_remove_item_action, font=self.dialog_button_font, fg_color="#f44336", hover_color="#CC3322"); remove_btn.pack(side="right")
+        cancel_btn = ctk.CTkButton(btn_frame, text="Cancelar", command=dialog.destroy, font=self.dialog_button_font, fg_color="#95a5a6", hover_color="#7F8C8D"); cancel_btn.pack(side="right", padx=10)
+        qtd_entry.focus_set()
+
 
 if __name__ == "__main__":
     db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
@@ -643,3 +696,4 @@ if __name__ == "__main__":
         if app.connection and app.connection.is_connected():
             app.connection.close()
             print("Log: Conexão com o BD fechada ao finalizar o app.")
+
