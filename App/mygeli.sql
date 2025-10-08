@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `senha` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_email` (`email`)
+  `preferencias` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -123,11 +124,11 @@ CREATE TABLE IF NOT EXISTS `receitas` (
 -- Inserindo dados (se as tabelas estiverem vazias)
 --
 
-INSERT INTO `usuarios` (`id`, `nome`, `telefone`, `email`, `senha`) VALUES
-(1, 'Marvin Cristhian Gomes Pinto', '19984214178', 'marvincristhian07.contato@gmail.com', '01020304'),
-(2, 'Luis Otavio', '19999999999', 'tevinho@gmail.com', '$2y$10$XdRmRirHIPOD4mU2wDzg1O5lkesoDXOVpz5Bf5bRRWnuu5fyYs2Ie'),
-(3, 'Jose', '19987654356', 'jose_silva@gmail.com', 'scrypt:32768:8:1$Zy0KvEkUNa1BlcYO$3eaef6f1ec54805d907d6c75f00b4abd38eee8183fbc864114a0d012f9eb7c94b077c9b361ef9ad8c373536605739a97941fc991e67a0ba1c41faecf3c4c7f4c'),
-(4, 'Tilambo Rego', '19999999999', 'tilambo.rego@gmail.com', 'scrypt:32768:8:1$AWI6ekcPl0l1N71X$26ed6252160afd096641d5d3967d5566d6cbba8c7ac2361302b54ae43438800bbb3fb315084c93875a5a89baa871dbe56f3988d0e6359cf1fec13f741c01b55f');
+INSERT INTO `usuarios` (`id`, `nome`, `telefone`, `email`, `senha`, `preferencias`) VALUES
+(1, 'Marvin Cristhian Gomes Pinto', '19984214178', 'marvincristhian07.contato@gmail.com', '01020304', NULL),
+(2, 'Luis Otavio', '19999999999', 'tevinho@gmail.com', '$2y$10$XdRmRirHIPOD4mU2wDzg1O5lkesoDXOVpz5Bf5bRRWnuu5fyYs2Ie', NULL),
+(3, 'Jose', '19987654356', 'jose_silva@gmail.com', 'scrypt:32768:8:1$Zy0KvEkUNa1BlcYO$3eaef6f1ec54805d907d6c75f00b4abd38eee8183fbc864114a0d012f9eb7c94b077c9b361ef9ad8c373536605739a97941fc991e67a0ba1c41faecf3c4c7f4c', NULL),
+(4, 'Tilambo Rego', '19999999999', 'tilambo.rego@gmail.com', 'scrypt:32768:8:1$AWI6ekcPl0l1N71X$26ed6252160afd096641d5d3967d5566d6cbba8c7ac2361302b54ae43438800bbb3fb315084c93875a5a89baa871dbe56f3988d0e6359cf1fec13f741c01b55f', NULL);
 
 INSERT INTO `log` (`id_action`, `id_user`, `action`, `status`, `date_time`, `ip_address`) VALUES
 (1, 4, 'Register', 'Success', '2025-09-30 16:42:50', '12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0');

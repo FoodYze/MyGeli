@@ -33,11 +33,26 @@ def hash_data(data):
     """ Criptografa uma string usando SHA256 """
     return hashlib.sha256(data.encode()).hexdigest()
 
-# --- Serviços (Podem ser movidos para arquivos separados para modularidade) ---
-
-class DBService: # Um serviço mais geral para interações com o DB
+class DBService:
     def __init__(self, db_config):
         self.db_config = db_config
+
+    def get_user_preferences(self, user_id):
+        cnx = self.get_db_connection()
+        cursor = cnx.cursor()
+        try:
+            query = "SELECT preferencias FROM usuarios WHERE id = %s"
+            cursor.execute(query, (user_id,))
+            resultado = cursor.fetchone()
+            if resultado and resultado[0]:
+                return resultado[0]
+            return None
+        except mysql.connector.Error as e:
+            print(f"Erro ao buscar preferências do usuário: {e}")
+            return None
+        finally:
+            cursor.close()
+            cnx.close()
 
     def get_db_connection(self):
         try:
@@ -218,6 +233,8 @@ def register():
         email = request.form.get('email', '').strip()
         senha = request.form.get('senha', '')
         confirm_senha = request.form.get('confirm-senha', '')
+        preferencias = request.form.get('preferencias', '').strip()
+
         remember = request.form.get('remember') is not None # Renomeei para evitar conflito com 'lembrar'
 
         if not nome or not email or not senha:
@@ -238,8 +255,8 @@ def register():
         cursor = cnx.cursor(buffered=True)
         try:
             cursor.execute(
-                "INSERT INTO usuarios (nome, telefone, email, senha) VALUES (%s, %s, %s, %s)",
-                (nome, telefone, email, senha_hash)
+                "INSERT INTO usuarios (nome, telefone, email, senha, preferencias) VALUES (%s, %s, %s, %s, %s)",
+                (nome, telefone, email, senha_hash, preferencias) # A variável 'preferencias' foi adicionada no final.
             )
             cnx.commit()
             new_user_id = cursor.lastrowid
