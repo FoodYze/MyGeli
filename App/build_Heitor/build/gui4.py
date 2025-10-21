@@ -9,14 +9,12 @@ import os
 import traceback
 import re
 from tkinter import messagebox
+from PIL import Image
 
 # --- Constantes e Configurações ---
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / "assets" / "frame1"
-SETA_IMAGE_PATH = OUTPUT_PATH / "seta.png"
-UP_ARROW_IMAGE_PATH = OUTPUT_PATH / "up_arrow.png"
-DOWN_ARROW_IMAGE_PATH = OUTPUT_PATH / "down_arrow.png"
-DEFAULT_ITEM_IMAGE_PATH = OUTPUT_PATH / "default.png"
+ASSETS_GERAL_PATH = OUTPUT_PATH / "assets" / "geral"
+SETA_IMAGE_PATH = ASSETS_GERAL_PATH / "seta.png"
 
 # --- Variáveis Globais da UI ---
 lista_compras_canvas = None
@@ -55,6 +53,15 @@ def conectar_mysql(host, database, user, password):
         messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao banco de dados:\n{e}\n\nVerifique suas credenciais.")
         return None
 
+def go_to_gui1():
+    """Fecha a janela atual e abre a gui1.py."""
+    if window:
+        window.destroy()
+    try:
+        subprocess.Popen([sys.executable, str(OUTPUT_PATH / "gui1.py")])
+    except Exception as e:
+        messagebox.showerror("Erro", f"Ocorreu um erro ao tentar abrir a tela inicial: {e}")
+
 def buscar_produtos_sugeridos():
     """
     Busca produtos sugeridos no BD e retorna uma lista simulada.
@@ -74,16 +81,34 @@ def buscar_produtos_sugeridos():
     
     return produtos_sugeridos
 
-def relative_to_assets(path: str) -> Path:
-    return ASSETS_PATH / Path(path)
-
 def criar_item_lista(parent, produto, index):
     """Cria um item da lista de compras na interface"""
     
     # Frame para cada item
-    item_frame = ctk.CTkFrame(parent, height=60, fg_color="#3B82F6", corner_radius=10)
-    item_frame.pack(fill="x", padx=10, pady=5)
-    item_frame.pack_propagate(False)
+    item_frame = ctk.CTkFrame(parent, height=55, fg_color="#3B82F6", corner_radius=10)
+    item_frame.pack(fill="x", padx=5, pady=5)
+    
+    # Botão remover (empacotado primeiro para ficar à direita)
+    remover_btn = ctk.CTkButton(
+        item_frame,
+        text="Remover",
+        width=70,
+        height=28,
+        font=ctk.CTkFont(size=11),
+        fg_color="#d32f2f",
+        hover_color="#b71c1c",
+        command=lambda item=produto: remover_item(item)
+    )
+    remover_btn.pack(side="right", padx=(5, 10), pady=10)
+
+    # Quantidade (empacotada antes do nome para ficar à direita do nome)
+    quantidade_label = ctk.CTkLabel(
+        item_frame,
+        text=f"{produto['quantidade']} {produto['unidade']}",
+        font=ctk.CTkFont(size=12),
+        anchor="e"
+    )
+    quantidade_label.pack(side="right", padx=(0, 5), pady=10)
     
     # Checkbox para seleção
     checkbox_var = ctk.BooleanVar()
@@ -93,40 +118,16 @@ def criar_item_lista(parent, produto, index):
         variable=checkbox_var,
         width=20
     )
-    checkbox.pack(side="left", padx=(10, 15), pady=15)
+    checkbox.pack(side="left", padx=(10, 5), pady=10)
     
-    # Nome do produto
+    # Nome do produto (expande para preencher o espaço restante)
     nome_label = ctk.CTkLabel(
         item_frame,
         text=produto["nome"],
         font=ctk.CTkFont(size=14, weight="bold"),
-        width=200,
         anchor="w"
     )
-    nome_label.pack(side="left", padx=(0, 10), pady=15)
-    
-    # Quantidade
-    quantidade_label = ctk.CTkLabel(
-        item_frame,
-        text=f"{produto['quantidade']} {produto['unidade']}",
-        font=ctk.CTkFont(size=12),
-        width=120,
-        anchor="w"
-    )
-    quantidade_label.pack(side="left", padx=(0, 10), pady=15)
-    
-    # Botão remover
-    remover_btn = ctk.CTkButton(
-        item_frame,
-        text="Remover",
-        width=80,
-        height=30,
-        font=ctk.CTkFont(size=11),
-        fg_color="#d32f2f",
-        hover_color="#b71c1c",
-        command=lambda item=produto: remover_item(item)
-    )
-    remover_btn.pack(side="right", padx=(10, 10), pady=15)
+    nome_label.pack(side="left", padx=(0, 10), pady=10, fill="x", expand=True)
     
     # Armazenar a checkbox_var e o item_frame no dicionário do produto
     produto["checkbox_var"] = checkbox_var
@@ -146,8 +147,6 @@ def carregar_lista_compras():
     # Criar itens da lista
     for index, produto in enumerate(lista_compras_data):
         item_frame, checkbox_var = criar_item_lista(lista_compras_inner_frame, produto, index)
-        # As referências checkbox_var e frame já são armazenadas dentro de criar_item_lista
-        # Não é necessário reatribuir aqui, mas é importante que criar_item_lista as armazene corretamente.
 
 def adicionar_item_manual():
     """Abre diálogo para adicionar item manualmente"""
@@ -158,33 +157,17 @@ def adicionar_item_manual():
     nome = dialog.get_input()
     
     if nome:
-        # Diálogo para quantidade
-        dialog_qtd = ctk.CTkInputDialog(
-            text="Digite a quantidade:",
-            title="Quantidade"
-        )
+        dialog_qtd = ctk.CTkInputDialog(text="Digite a quantidade:", title="Quantidade")
         quantidade = dialog_qtd.get_input()
         
         if quantidade:
-            # Diálogo para unidade
-            dialog_unidade = ctk.CTkInputDialog(
-                text="Digite a unidade (ex: kg, litros, unidades):",
-                title="Unidade"
-            )
+            dialog_unidade = ctk.CTkInputDialog(text="Digite a unidade (ex: kg, L, un):", title="Unidade")
             unidade = dialog_unidade.get_input()
             
             if unidade:
-                # Adicionar à lista
-                novo_item = {
-                    "nome": nome,
-                    "quantidade": quantidade,
-                    "unidade": unidade
-                }
+                novo_item = {"nome": nome, "quantidade": quantidade, "unidade": unidade}
                 lista_compras_data.append(novo_item)
-                
-                # Recarregar lista
                 carregar_lista_compras()
-                
                 messagebox.showinfo("Sucesso", f"Item '{nome}' adicionado à lista!")
 
 def remover_item(item_to_remove):
@@ -193,55 +176,50 @@ def remover_item(item_to_remove):
     
     try:
         lista_compras_data.remove(item_to_remove)
-        # Destruir o frame do item removido da UI
-        if "frame" in item_to_remove and item_to_remove["frame"] is not None:
+        if "frame" in item_to_remove and item_to_remove["frame"].winfo_exists():
             item_to_remove["frame"].destroy()
+        messagebox.showinfo("Item Removido", f"'{item_to_remove['nome']}' foi removido da lista.")
+    except (ValueError, KeyError):
+        messagebox.showwarning("Erro", "Item não encontrado ou já removido.")
+        # Recarrega a lista para garantir a consistência da UI
         carregar_lista_compras()
-        messagebox.showinfo("Item Removido", f"'{item_to_remove["nome"]}' foi removido da lista.")
-    except ValueError:
-        messagebox.showwarning("Erro", "Item não encontrado na lista.")
+
 
 def remover_selecionados():
     """Remove todos os itens selecionados"""
     global lista_compras_data
     
-    # Identificar itens selecionados
-    itens_para_remover = []
-    for produto in lista_compras_data:
-        if "checkbox_var" in produto and produto["checkbox_var"].get():
-            itens_para_remover.append(produto)
+    itens_para_remover = [p for p in lista_compras_data if "checkbox_var" in p and p["checkbox_var"].get()]
     
-    # Remover itens
-    for item_to_remove in itens_para_remover:
-        if "frame" in item_to_remove and item_to_remove["frame"] is not None:
-            item_to_remove["frame"].destroy()
-        lista_compras_data.remove(item_to_remove)
-    
-    if itens_para_remover:
-        carregar_lista_compras()
-        messagebox.showinfo("Itens Removidos", f"{len(itens_para_remover)} item(s) removido(s) da lista.")
-    else:
+    if not itens_para_remover:
         messagebox.showwarning("Nenhum Item Selecionado", "Selecione pelo menos um item para remover.")
+        return
+
+    for item in itens_para_remover:
+        if "frame" in item and item["frame"].winfo_exists():
+            item["frame"].destroy()
+        lista_compras_data.remove(item)
+
+    messagebox.showinfo("Itens Removidos", f"{len(itens_para_remover)} item(s) removido(s) da lista.")
 
 def salvar_lista():
     """Salva a lista de compras em arquivo"""
     try:
-        # Criar arquivo de lista de compras
         lista_path = OUTPUT_PATH / "lista_compras.txt"
         
         with open(lista_path, "w", encoding="utf-8") as file:
-            file.write("=== LISTA DE COMPRAS SUGERIDA ===\n")
+            file.write("=== MINHA LISTA DE COMPRAS ===\n")
             file.write(f"Gerada em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n")
             
             for index, produto in enumerate(lista_compras_data, 1):
-                file.write(f"{index}. {produto['nome']} - {produto['quantidade']} {produto['unidade']}\n")
+                file.write(f"[ ] {produto['nome']} - {produto['quantidade']} {produto['unidade']}\n")
             
             file.write(f"\nTotal de itens: {len(lista_compras_data)}")
         
-        messagebox.showinfo("Lista Salva", f"Lista de compras salva em:\n{lista_path}")
+        messagebox.showinfo("Lista Salva", f"Sua lista de compras foi salva em:\n{lista_path}")
         
     except Exception as e:
-        messagebox.showerror("Erro ao Salvar", f"Erro ao salvar lista:\n{e}")
+        messagebox.showerror("Erro ao Salvar", f"Ocorreu um erro ao salvar a lista:\n{e}")
 
 def abrir_gui4():
     """Função principal para abrir a GUI4 - Lista de Compras"""
@@ -249,86 +227,89 @@ def abrir_gui4():
     
     # Configurar janela principal
     window = ctk.CTk()
-    window.geometry("800x600")
-    window.title("MyGeli - Lista de Compras Sugerida")
-    window.configure(fg_color="#f0f0f0")
+    window.title("MyGeli - Lista de Compras")
+    window.configure(fg_color="#F5F5F5")
     
-    # Título principal
-    titulo = ctk.CTkLabel(
-        window,
-        text="Lista de Compras Sugerida",
-        font=ctk.CTkFont(size=24, weight="bold"),
-        text_color="#2e7d32"
-    )
-    titulo.pack(pady=(20, 10))
+    # Padronização do tamanho e centralização da janela
+    window_width = 400
+    window_height = 650
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+    center_x = int(screen_width/2 - window_width / 2)
+    center_y = int(screen_height/2 - window_height / 2)
+    window.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
+    window.minsize(window_width, window_height)
+
+    # Layout com Grid
+    window.grid_rowconfigure(1, weight=1)
+    window.grid_columnconfigure(0, weight=1)
+
+    # --- Cabeçalho Padrão ---
+    header_frame = ctk.CTkFrame(window, height=80, corner_radius=0, fg_color="#0084FF")
+    header_frame.grid(row=0, column=0, sticky="new")
+    header_frame.grid_propagate(False)
+    header_frame.grid_columnconfigure(1, weight=1)
+    
+    try:
+        seta_image = ctk.CTkImage(light_image=Image.open(SETA_IMAGE_PATH).resize((30, 30)), size=(30, 30))
+        back_btn = ctk.CTkButton(header_frame, text="", image=seta_image, width=40, height=40, fg_color="transparent", hover_color="#0066CC", command=go_to_gui1)
+    except Exception as e:
+        print(f"Erro ao carregar imagem da seta: {e}")
+        back_btn = ctk.CTkButton(header_frame, text="Voltar", fg_color="transparent", hover_color="#0066CC", text_color="white", command=go_to_gui1)
+    back_btn.grid(row=0, column=0, padx=10, pady=20, sticky="w")
+
+    ctk.CTkLabel(header_frame, text="Lista de Compras", font=ctk.CTkFont(size=22, weight="bold"), text_color="white").grid(row=0, column=1, pady=20, sticky="ew")
+
+    # Frame de conteúdo principal
+    content_frame = ctk.CTkFrame(window, fg_color="transparent")
+    content_frame.grid(row=1, column=0, sticky="nsew", padx=15, pady=15)
+    content_frame.grid_rowconfigure(1, weight=1)
+    content_frame.grid_columnconfigure(0, weight=1)
     
     # Subtítulo
     subtitulo = ctk.CTkLabel(
-        window,
-        text="Sugestões baseadas no seu consumo e utilização do app",
+        content_frame,
+        text="Sugestões baseadas no seu consumo",
         font=ctk.CTkFont(size=14),
         text_color="#666666"
     )
-    subtitulo.pack(pady=(0, 20))
+    subtitulo.grid(row=0, column=0, pady=(0, 15))
     
-    # Frame principal para a lista
-    main_frame = ctk.CTkFrame(window, fg_color="white")
-    main_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+    # Frame com a lista rolável
+    lista_frame = ctk.CTkFrame(content_frame, fg_color="white", corner_radius=10)
+    lista_frame.grid(row=1, column=0, sticky="nsew")
     
-    # Canvas e scrollbar para lista rolável
     lista_compras_canvas = ctk.CTkScrollableFrame(
-        main_frame,
-        width=740,
-        height=400,
+        lista_frame,
         fg_color="white"
     )
-    lista_compras_canvas.pack(fill="both", expand=True, padx=10, pady=10)
+    lista_compras_canvas.pack(fill="both", expand=True, padx=5, pady=5)
     
     # Frame interno para os itens
     lista_compras_inner_frame = lista_compras_canvas
     
-    # Frame para botões de ação
-    botoes_frame = ctk.CTkFrame(window, fg_color="transparent")
-    botoes_frame.pack(fill="x", padx=20, pady=(0, 20))
+    # Frame para botões de ação na parte inferior
+    botoes_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+    botoes_frame.grid(row=2, column=0, sticky="ew", pady=(15, 0))
+    botoes_frame.grid_columnconfigure(0, weight=1)
     
-    # Botão Adicionar Manualmente
     btn_adicionar = ctk.CTkButton(
-        botoes_frame,
-        text="Adicionar Manualmente",
-        width=150,
-        height=40,
-        font=ctk.CTkFont(size=12, weight="bold"),
-        fg_color="#4caf50",
-        hover_color="#45a049",
-        command=adicionar_item_manual
+        botoes_frame, text="Adicionar Item", height=40, font=ctk.CTkFont(size=12, weight="bold"),
+        fg_color="#4caf50", hover_color="#45a049", command=adicionar_item_manual
     )
-    btn_adicionar.pack(side="left", padx=(0, 10))
+    btn_adicionar.grid(row=0, column=0, sticky="ew", pady=(0,5))
     
-    # Botão Remover Selecionados
     btn_remover = ctk.CTkButton(
-        botoes_frame,
-        text="Remover Selecionados",
-        width=150,
-        height=40,
-        font=ctk.CTkFont(size=12, weight="bold"),
-        fg_color="#f44336",
-        hover_color="#d32f2f",
-        command=remover_selecionados
+        botoes_frame, text="Remover Selecionados", height=40, font=ctk.CTkFont(size=12, weight="bold"),
+        fg_color="#f44336", hover_color="#d32f2f", command=remover_selecionados
     )
-    btn_remover.pack(side="left", padx=(0, 10))
+    btn_remover.grid(row=1, column=0, sticky="ew", pady=(0,5))
     
-    # Botão Salvar Lista
     btn_salvar = ctk.CTkButton(
-        botoes_frame,
-        text="Salvar Lista",
-        width=150,
-        height=40,
-        font=ctk.CTkFont(size=12, weight="bold"),
-        fg_color="#2196f3",
-        hover_color="#1976d2",
-        command=salvar_lista
+        botoes_frame, text="Salvar Lista (.txt)", height=40, font=ctk.CTkFont(size=12, weight="bold"),
+        fg_color="#2196f3", hover_color="#1976d2", command=salvar_lista
     )
-    btn_salvar.pack(side="right")
+    btn_salvar.grid(row=2, column=0, sticky="ew")
     
     # Carregar lista inicial de produtos sugeridos
     global lista_compras_data
