@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `email` VARCHAR(255) NOT NULL,
   `senha` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_email` (`email`)
+  UNIQUE KEY `uk_email` (`email`),
   `preferencias` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -153,7 +153,60 @@ INSERT INTO `produtos` (`id_produto`, `nome_produto`, `quantidade_produto`, `tip
 
 
 -- --------------------------------------------------------
+-- --------------------------------------------------------
+-- NOVAS TABELAS PARA FUNCIONALIDADE DE PLANEJAMENTO
+-- --------------------------------------------------------
 
+CREATE TABLE IF NOT EXISTS `ingredients` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(255) NOT NULL,
+  `unit` VARCHAR(50) DEFAULT NULL,
+   KEY `idx_ingredient_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `recipe_ingredients` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `recipe_id` INT(3) NOT NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `quantity` DECIMAL(10,2) DEFAULT NULL,
+  `unit` VARCHAR(50) DEFAULT NULL,
+  CONSTRAINT `fk_ri_receita` FOREIGN KEY (`recipe_id`) REFERENCES `receitas`(`idreceita`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `meal_plans` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT(11) NOT NULL,
+  `recipe_id` INT(3) NOT NULL,
+  `date` DATE NOT NULL,
+  `meal_type` VARCHAR(50) DEFAULT NULL,
+  KEY `idx_mealplan_date` (`date`),
+  CONSTRAINT `fk_mp_usuario` FOREIGN KEY (`user_id`) REFERENCES `usuarios`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mp_receita` FOREIGN KEY (`recipe_id`) REFERENCES `receitas`(`idreceita`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `shopping_list_items` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT(11) NOT NULL,
+  `ingredient_name` VARCHAR(255) NOT NULL,
+  `quantity` DECIMAL(10,2) DEFAULT NULL,
+  `unit` VARCHAR(50) DEFAULT NULL,
+  `note` VARCHAR(255) DEFAULT NULL,
+  CONSTRAINT `fk_sl_usuario` FOREIGN KEY (`user_id`) REFERENCES `usuarios`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- INSERÇÃO DOS DADOS DE TESTE PARA O PLANEJAMENTO
+INSERT IGNORE INTO `receitas` (`idreceita`, `tituloreceita`, `descreceita`, `idusuario`) VALUES
+(1, 'Salada Caesar com Frango', 'Uma salada clássica e completa', 1);
+
+-- Apaga ingredientes antigos desta receita para evitar duplicatas ao reimportar o .sql
+DELETE FROM `recipe_ingredients` WHERE `recipe_id` = 1;
+INSERT INTO `recipe_ingredients` (`recipe_id`, `name`, `quantity`, `unit`) VALUES
+(1, 'Alface Romana', 1, 'un'),
+(1, 'Peito de Frango', 200, 'g'),
+(1, 'Croutons', 50, 'g'),
+(1, 'Queijo Parmesão', 30, 'g');
+
+ALTER TABLE `receitas` MODIFY `idreceita` INT(3) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 --
 -- Configurando AUTO_INCREMENT para as tabelas
 -- OBS: Isso garante que os próximos registros comecem a partir do número correto.
