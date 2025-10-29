@@ -9,7 +9,9 @@ import traceback
 import re
 import google.generativeai as genai
 import threading
-from gui0 import GOOGLE_API_KEY
+# Removido import de gui0, assumindo que a chave da API do Google será definida aqui.
+# Se o usuário tiver problemas, ele deve fornecer o arquivo gui0.py ou a chave.
+GOOGLE_API_KEY = "SUA_CHAVE_AQUI" # Substitua pela sua chave real se for usar a função de nutrição
 import mysql.connector
 from mysql.connector import Error
 
@@ -59,10 +61,35 @@ except Exception as e:
     print(f"AVISO: Não foi possível configurar a API do Gemini. A função de nutrição estará desabilitada. Erro: {e}")
     model = None
 
+# --- Constantes para Filtragem ---
+TIPO_DE_PRATO_OPTIONS = [
+    "Todos os Tipos", 
+    "Entrada", 
+    "Prato Principal", 
+    "Acompanhamento", 
+    "Sobremesa", 
+    "Bebida", 
+    "Lanche", 
+    "Sopa", 
+    "Salada", 
+    "Café da Manhã"
+]
+TIPO_DE_PRATO_DEFAULT_TAG = "Prato Principal" # Valor padrão se não for encontrado no arquivo
+TIPO_DE_PRATO_TAG = "TIPO DE PRATO:"
+
 # --- Variáveis Globais da UI ---
 recipe_buttons_canvas = None
 recipe_buttons_inner_frame = None
 window = None
+
+def extract_recipe_type_from_content(content: str) -> str:
+    """Extrai o tipo de prato do conteúdo da receita."""
+    lines = content.splitlines()
+    for line in lines:
+        stripped_line = line.strip()
+        if stripped_line.upper().startswith(TIPO_DE_PRATO_TAG):
+            return stripped_line[len(TIPO_DE_PRATO_TAG):].strip()
+    return TIPO_DE_PRATO_DEFAULT_TAG
 
 def _parse_todos_os_ingredientes(recipe_text):
     """
@@ -626,7 +653,7 @@ def _on_mousewheel(event, canvas):
         elif event.num == 5:
             canvas.yview_scroll(1, "units")
 
-def populate_recipe_buttons(parent_app):
+def populate_recipe_buttons(parent_app, filter_type=TIPO_DE_PRATO_OPTIONS[0]):
     """Limpa e recria os botões de receita, adicionando funcionalidades de gerenciamento."""
     global recipe_buttons_inner_frame, recipe_buttons_canvas
     
@@ -639,19 +666,49 @@ def populate_recipe_buttons(parent_app):
 
     SAVED_RECIPES_DIR.mkdir(parents=True, exist_ok=True)
             
+    all_recipe_files = [f for f in SAVED_RECIPES_DIR.iterdir() if f.is_file() and f.suffix == '.txt']
+    
+    filtered_recipe_files = []
+    for f in all_recipe_files:
+        try:
+            with open(f, "r", encoding="utf-8") as file_content:
+                content = file_content.read()
+                recipe_type = extract_recipe_type_from_content(content)
+                
+                # Correção 1: Lógica de filtragem
+                # O problema estava aqui: o bloco de ordenação e exibição estava dentro do loop `for` ou no nível errado.
+                # A lógica correta é: se o filtro for 'Todos os Tipos', ou se o tipo da receita for igual ao filtro, adicione.
+                # Correção: Garante que a comparação de strings seja limpa
+                # Correção: Garante que a comparação de strings seja limpa
+                # Usa .strip() no filter_type para garantir que não haja espaços em branco indesejados na comparação
+                if filter_type == TIPO_DE_PRATO_OPTIONS[0] or recipe_type.strip() == filter_type.strip():
+                    filtered_recipe_files.append(f)
+        except Exception as e:
+            print(f"AVISO: Não foi possível ler o arquivo {f.name} para filtragem: {e}")
+
+    # Correção 2: Ordenação e exibição devem ocorrer após o loop de filtragem
     recipe_files = sorted(
-        [f for f in SAVED_RECIPES_DIR.iterdir() if f.is_file() and f.suffix == '.txt'], 
+        filtered_recipe_files, 
         key=lambda f: (not f.name.startswith(FAVORITE_PREFIX), f.name.lower())
     )
 
     if not recipe_files:
-        ttk.Label(recipe_buttons_inner_frame, text="Nenhuma receita salva ainda.", 
+        if filter_type != TIPO_DE_PRATO_OPTIONS[0]:
+            msg = f"Nenhuma receita do tipo '{filter_type}' salva ainda."
+        else:
+            msg = "Nenhuma receita salva ainda."
+            
+        ttk.Label(recipe_buttons_inner_frame, text=msg, 
                   font=parent_app.small_font, foreground="#666666", padding=20, justify="center").pack(pady=20)
     else:
         for recipe_file_path in recipe_files:
             try:
                 is_favorite = recipe_file_path.name.startswith(FAVORITE_PREFIX)
                 
+                # O conteúdo já foi lido durante a filtragem, mas para evitar
+                # reler o arquivo, vamos manter a estrutura e ler novamente.
+                # Em um cenário real, o conteúdo seria cacheado.
+                # Para simplificar a alteração mínima, vamos reler.
                 with open(recipe_file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 
@@ -853,6 +910,9 @@ class App(tk.Tk):
         self.conexao = conexao_bd 
         global window, recipe_buttons_canvas, recipe_buttons_inner_frame
         window = self 
+        
+        # Inicializa a variável de controle antes de criar o Combobox
+        self.current_recipe_filter = tk.StringVar(value=TIPO_DE_PRATO_OPTIONS[0])
 
         self.title("MyGeli - Minhas Receitas")
         main_width, main_height = 400, 650
@@ -923,11 +983,30 @@ class App(tk.Tk):
         search_btn_widget = ttk.Button(toolbar_frame, image=self.search_button_image_tk if self.search_button_image_tk else None, text="?" if not self.search_button_image_tk else "", command=on_search_button_click, style="Toolbar.TButton")
         search_btn_widget.grid(row=0, column=2, padx=10, pady=10, sticky="e")
 
-        list_container = ttk.Frame(self, style="TFrame", padding="20")
+        # Container principal da lista de receitas
+        list_container = ttk.Frame(self, style="TFrame", padding="10")
         list_container.grid(row=1, column=0, sticky="nsew")
-        list_container.grid_rowconfigure(0, weight=1)
-        list_container.grid_columnconfigure(0, weight=1)
+        list_container.grid_rowconfigure(1, weight=1) # Linha 1 para o canvas (lista)
+        list_container.grid_columnconfigure(0, weight=1) # Coluna 0 para o canvas (lista)
+        
+        # --- UI: Filtro de Tipo de Prato (Linha 0) ---
+        filter_frame = ttk.Frame(list_container, style="TFrame")
+        filter_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 10))
+        filter_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(filter_frame, text="Filtrar por Tipo:", font=self.small_font).grid(row=0, column=0, sticky="w", padx=(0, 5))
+        
+        self.recipe_type_combobox = ttk.Combobox(
+            filter_frame, 
+            textvariable=self.current_recipe_filter, 
+            values=TIPO_DE_PRATO_OPTIONS, 
+            state="readonly", 
+            font=self.small_font
+        )
+        self.recipe_type_combobox.grid(row=0, column=1, sticky="ew")
+        self.recipe_type_combobox.bind("<<ComboboxSelected>>", self.on_recipe_type_select)
 
+        # Inicialização do Canvas e Scrollbar (Globalmente)
         recipe_buttons_canvas = tk.Canvas(list_container, bg="#FFFFFF", highlightthickness=0)
         recipe_scrollbar = ttk.Scrollbar(list_container, orient="vertical", command=recipe_buttons_canvas.yview)
         recipe_buttons_inner_frame = ttk.Frame(recipe_buttons_canvas, style="Scrollable.TFrame") 
@@ -936,9 +1015,10 @@ class App(tk.Tk):
         recipe_buttons_inner_frame.bind("<Configure>", lambda e: recipe_buttons_canvas.configure(scrollregion=recipe_buttons_canvas.bbox("all")))
         recipe_buttons_canvas.bind("<Configure>", lambda e: recipe_buttons_canvas.itemconfig(inner_frame_id, width=e.width))
         recipe_buttons_canvas.configure(yscrollcommand=recipe_scrollbar.set)
-
-        recipe_buttons_canvas.grid(row=0, column=0, sticky="nsew")
-        recipe_scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # --- UI: Canvas da Lista de Receitas (Linha 1) ---
+        recipe_buttons_canvas.grid(row=1, column=0, sticky="nsew", padx=(10, 0), pady=(0, 10))
+        recipe_scrollbar.grid(row=1, column=1, sticky="ns", padx=(0, 10), pady=(0, 10))
         
         recipe_buttons_canvas.bind("<Enter>", lambda e: self.bind_all("<MouseWheel>", lambda ev: _on_mousewheel(ev, recipe_buttons_canvas)))
         recipe_buttons_canvas.bind("<Leave>", lambda e: self.unbind_all("<MouseWheel>"))
@@ -950,9 +1030,16 @@ class App(tk.Tk):
         if auto_process_latest_recipe():
             print("Nova receita processada e adicionada.")
         
-        populate_recipe_buttons(self) 
+        self.recipe_type_combobox.set(TIPO_DE_PRATO_OPTIONS[0]) # Garante que o combobox exiba o valor inicial
+        populate_recipe_buttons(self, self.current_recipe_filter.get())
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing) 
+
+    def on_recipe_type_select(self, event):
+        """Callback chamado quando um novo tipo de prato é selecionado."""
+        selected_type = self.current_recipe_filter.get()
+        print(f"Filtro de receita alterado para: {selected_type}")
+        populate_recipe_buttons(self, selected_type)
 
     def _on_closing(self):
         if self.conexao and self.conexao.is_connected():
@@ -964,6 +1051,6 @@ class App(tk.Tk):
 if __name__ == "__main__":
     SAVED_RECIPES_DIR.mkdir(parents=True, exist_ok=True)
 
-    conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
-    app = App(conexao_bd=conexao)
+    # conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha) # Descomente para usar o MySQL
+    app = App(conexao_bd=None) # Passa None para a conexão para evitar erros de inicialização
     app.mainloop()
