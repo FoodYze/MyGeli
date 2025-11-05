@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat | MyGeli</title>
+  <link rel="icon" href="{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='chatbot-page/style.css') }}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+</head>
+<body>
+
+  <div class="loader-wrapper" id="loader-wrapper">
+    <div class="loader-container">
+      <p class="loader-text">Carregando</p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <p class="progress-percentage" id="progress-percentage">0%</p>
+    </div>
+  </div>
+
+  <nav class="nav-drawer" aria-label="Menu de Navegação Principal">
+    <div class="logo"></div>
+    <ul>
+      <li><a href="#">Geral</a></li>
+      <li style="background-color: #318EAD;"><a href="#">Chat</a></li>
+      <li><a href="#">Receitas</a></li>
+      <li><a href="#">Estoque</a></li>
+      <li><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
+    </ul>
+  </nav>
+
+  <div class="container" id="main-content">
+    <header class="app-header">
+      <h1 class="heading">Olá</h1>
+      <h2 class="sub-heading">Como posso te ajudar?</h2>
+    </header>
+   
+    <ul class="suggestions">
+      <li class="suggestions-item">
+        <p class="text">Monte um plano de alimentação para déficit calórico.</p>
+        <span class="material-symbols-rounded">calendar_meal</span>
+      </li>
+      <li class="suggestions-item">
+        <p class="text">Ideia de receita fácil e rápida que rende 4 porções.</p>
+        <span class="material-symbols-rounded">hand_meal</span>
+      </li>
+      <li class="suggestions-item">
+        <p class="text">Como posso utilizar os alimentos do meu estoque.</p>
+        <span class="material-symbols-rounded">kitchen</span>
+      </li>
+      <li class="suggestions-item">
+        <p class="text">Monte um cardápio semanal para alimentação Low Carb.</p>
+        <span class="material-symbols-rounded">menu_book</span>
+      </li>
+    </ul>
+   
+    <div class="chats-container"></div>
+   
+    <div class="prompt-container">
+      <div class="prompt-wrapper">
+        <form action="#" class="prompt-form">
+          <input type="text" placeholder="Fale com a Geli..." class="prompt-input" required>
+          <div class="prompt-actions">
+            <div class="file-upload-wrapper">
+              <img src="#" class="file-preview">
+              <input type="file" accept="image/*, .pdf, .txt, .csv" id="file-input" hidden>
+              <button type="button" class="file-icon material-symbols-rounded">description</button>
+              <button id="add-file-btn" type="button" class="material-symbols-rounded">attach_file</button>
+              <button id="cancel-file-btn" type="button" class="material-symbols-rounded">close</button>
+            </div>
+            <button type="button" id="stop-response-btn" class="material-symbols-rounded">stop_circle</button>
+            <button id="send-prompt-btn" class="material-symbols-rounded">arrow_upward</button>
+          </div>
+        </form>
+       
+        <button id="theme-toggle-btn" class="material-symbols-rounded">light_mode</button>
+        <button id="delete-chats-btn" class="material-symbols-rounded">delete</button>
+      </div>
+     
+      <p class="disclaimer-text">Geli pode cometer erros, então verifique as respostas.</p>
+    </div>
+  </div>
+  <script id="app-data" type="application/json">
+        {{ user_stock_json | safe }}
+    </script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+        const GeliIconURL = "{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}";
+    </script>
+  <script src="{{ url_for('static', filename='chatbot-page/script.js') }}"></script>
+</body>
+</html>

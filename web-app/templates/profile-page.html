@@ -1,0 +1,69 @@
+<!-- Crie este arquivo em templates/profile-page.html -->
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Perfil | MyGeli</title>
+    <!-- Link para um novo arquivo CSS que vamos criar -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='profile-page/style.css') }}">
+</head>
+<body>
+
+    <nav class="nav-drawer" aria-label="Menu de Navegação Principal">
+    <div class="logo"></div>
+    <ul>
+      <li><a href="#">Geral</a></li>
+      <li><a href="{{ url_for('chatbot_page')}}">Chat</a></li>
+      <li><a href="#">Receitas</a></li>
+      <li><a href="#">Estoque</a></li>
+      <li style="background-color: #318EAD;"><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
+    </ul>
+  </nav>
+
+    <div class="container">
+        <header>
+            <h1>Perfil de Usuário</h1>
+            <p>Gerencie suas preferências alimentares para receber recomendações personalizadas.</p>
+        </header>
+        
+        <!-- Mensagem de sucesso -->
+        {% if success_message %}
+            <div class="alert success">{{ success_message }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('profile') }}">
+            <div class="form-group">
+                <label for="name">Nome:</label>
+                <!-- O campo 'name' não será editável neste formulário -->
+                <input type="text" id="name" name="name" value="{{ user.nome }}" disabled>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email:</label>
+                 <!-- O campo 'email' não será editável neste formulário -->
+                <input type="email" id="email" name="email" value="{{ user.email }}" disabled>
+            </div>
+
+            <div class="form-group">
+                <label for="allergies">Alergias</label>
+                <textarea id="allergies" name="allergies" rows="4" placeholder="Ex: Glúten, lactose, amendoim, frutos do mar...">{{ user_preferences.allergies }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="dietary_restrictions">Restrições Alimentares</label>
+                <textarea id="dietary_restrictions" name="dietary_restrictions" rows="4" placeholder="Ex: Vegetariano, vegano, baixo carboidrato, sem açúcar...">{{ user_preferences.dietary_restrictions }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="other">Outras Preferências</label>
+                <textarea id="other" name="other" rows="3" placeholder="Ex: Prefiro comidas apimentadas, não gosto de coentro...">{{ user_preferences.other }}</textarea>
+            </div>
+
+            <button type="submit" class="btn-save">Salvar Preferências</button>
+        </form>
+    </div>
+
+</body>
+</html>

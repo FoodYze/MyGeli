@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Caminho relativo corrigido para a pasta de CSS/JS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='register-page/style.css') }}">
+  <link rel="icon" href="data:image/x-icon,;">
+  <title>Registrar | MyGeli</title>
+</head>
+<body>
+
+  <div class="loader-wrapper" id="loader-wrapper">
+    <div class="loader-container">
+      <p class="loader-text">Carregando</p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <p class="progress-percentage" id="progress-percentage">0%</p>
+    </div>
+  </div>
+ 
+  <!-- Suas colunas e divs de design -->
+  <div class="coluna1">
+    <div class="bar1fra-12"></div>
+    <div class="bar1for-12"></div>
+  </div>
+ 
+  <div class="coluna2">
+    <div class="bar1fra-23"></div>
+    <div class="bar1for-23"></div>
+  </div>
+ 
+  <div class="coluna3">
+    <div class="bar2fra-23"></div>
+    <div class="bar2for-23"></div>
+  </div>
+ 
+  <div class="coluna4">
+    <div class="bar1fra-12"></div>
+    <div class="bar1for-12"></div>
+  </div>
+
+    <div class="login-container">
+      <button class="back" onclick="window.location.href='{{ url_for('login') }}'"><</button>
+      <div class="login-header">
+        <h1>Cadastrar-se</h1>
+        <p>Preencha as informações abaixo para criar sua conta</p>
+      </div>
+      <!-- Action agora aponta para a rota Flask '/register' -->
+      <form class="login-form" action="{{ url_for('register') }}" method="post">
+        <div class="form-group">
+          <label for="username">Nome completo</label>
+          <div class="nome-field">
+            <input type="text" id="username" name="nome" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="cellphone">Telefone</label>
+          <div class="tell-field">
+            <input type="text" id="cellphone" name="telefone" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="email">E-mail</label>
+          <div class="email-field">
+            <input type="email" id="email" name="email" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="password">Senha</label>
+          <div class="password-field">
+            <input type="password" id="password" name="senha" required>
+            <button type="button" class="toggle-password" aria-label="Toggle password visibility">
+              <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path class="eye-open" d="M12 4.5c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                <path class="eye-closed" d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z" style="display: none;"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="password2">Confirmar senha</label>
+          <div class="confirmPassword-field">
+            <input type="password" id="password2" name="confirm-senha" required> 
+            <button type="button" class="toggle-password" aria-label="Toggle password visibility">
+              <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path class="eye-open" d="M12 4.5c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                <path class="eye-closed" d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z" style="display: none;"/>
+              </svg>
+            </button>
+          </div>
+          <div class="error-message" style="display: none;">
+            <!-- Mensagens de erro serão injetadas aqui pelo JavaScript -->
+          </div>
+        </div>
+        <div class="form-options">
+          <div class="remember-me">
+            <input type="checkbox" id="remember" name="remember">
+            <label for="remember">Li e concordo com os <a href="#" id="link-termos">Termos de Uso</a> da plataforma.</label>
+          </div>
+        </div>
+        <button type="submit" class="login-button" name="cadastrar">Cadastrar</button>
+      </form>
+    </div>
+  
+  <div class="termos">
+    <button id="fechar_termos">X</button>
+    <h1>Termos e Condições de Uso da Plataforma MyGeli</h1>
+    <b>Data de Efetivação:</b> 09 de setembro de 2025
+    <br><br>
+    <b>Por favor, leia estes termos de uso com atenção antes de utilizar a nossa plataforma.</b>
+    <br><br>
+    <p>Bem vindo(a) à MyGeli! Estes Termos e Condições de Uso ("termos") regem o seu acesso e uso da aplicação web MyGeli ("Plataforma"), incluindo todo o conteúdo, funcionalidades e serviços oferecidos.</p>
+    <br>
+    <p>
+      <b>1. ACEITAÇÃO DOS TERMOS</b>
+      <br><br>
+      Ao se cadastrar, acessar ou utilizar a Plataforma MyGeli de qualquer forma, você, doravante denominado <b>"Usuário"</b>, expressa sua concordância plena e sem ressalvas com todos os termos e condições aqui estabelecidos. Caso não concorde com qualquer um dos termos, você não deve utilizar a plataforma.
+    </p>
+    <p>
+      <b>2. DESCRIÇÃO DO SERVIÇO</b>
+      <br><br>
+      A MyGeli é uma plataforma de assistência culinária que permite ao Usuário gerenciar um inventário de alimentos ("Estoque"), obter sugestões de receitas através de uma interface de Inteligência Artificial ("Geli") e arquivar suas receitas. A plataforma visa otimizar o uso de ingredientes e auxiliar no planejamento de refeições.
+    </p>
+    <p>
+      <b>3. CADASTRO E CONTA DO USUÁRIO</b>
+      <br><br>
+      <b>3.1. Elegibilidade</b>
+      <br><br>
+      Para utilizar a Plataforma, o Usuário declara ser maior de 18 (dezoito) anos e possuir plena capacidade legal. A MyGeli não coleta intencionalmente dados de menores de 18 anos, a MyGeli se reserva o direito de encerrar a conta imediatamente e excluir todos os dados pessoais e de uso associado a ela, sem aviso prévio.
+      <br><br>
+      <b>3.2. Veracidade das informações</b>
+      <br><br>
+      O Usuário se compromete a fornecer informações verdadeiras, exatas e atualizadas durante o cadastro, responsabilizando-se por elas.
+      <br><br>
+      <b>3.3. Segurança da Conta</b>
+      <br><br>
+      O Usuário é o único responsável por manter a confidencialidade de sua senha e por todas as atividades que ocorrerem em sua conta. A MyGeli não será responsável por perdas ou danos decorrentes do uso não autorizado de sua conta.
+    </p>
+    <p>
+      <b>4. POLÍTICA DE PRIVACIDADE E PROTEÇÃO DE DADOS</b>
+      <br><br>
+      A MyGeli respeita sua privacidade e está em conformidade com a Lei Geral de Proteção de Dados Pessoais (Lei n° 13.709/2018). <br>
+      Para mais detalhes sobre como coletamos, usamos, armazenamos e protegemos seus dados pessoais, por favor leia nossa <a href="#">Política de Privacidade</a>, que é parte integrante destes Termos.
+    </p>
+    <p>
+      <b>5. RESPONSABILIDADES, DIREITOS E RESTRIÇÕES</b>
+      <br><br>
+      <b>5.1. Conteúdo Gerado pela IA (Geli)</b>
+      <br><br>
+      As receitas, dicas e informações culinárias fornecidas pela Geli são geradas por inteligência artificial e oferecidas exclusivamente como sugestões. Elas não são, e não devem ser interpretadas como orientação profissional de qualquer tipo. <br>
+      A <em>MyGeli NÃO SE RESPONSABILIZA, em hipótese alguma</em>, por quaisquer danos, perdas ou prejuízos decorrentes do uso, preparo ou consumo das receitas sugeridas. <em>É de total e inteira responsabilidade do Usuário verificar e assegurar a adequação de todos os ingredientes</em> em relação a alergias, intolerância, restrições alimentares ou condições de saúde. Da mesma forma, cabe ao Usuário garantir a segurança e a higiene no preparo dos alimentos. <br>
+      As informações nutricionais, quando fornecidas, são estimativas e <em>não substituem</em> a orientação de um profissional de saúde, como médico ou nutricionista. <em>Ao utilizar a Geli, você assume todos os riscos associados ao uso e preparo de qualquer receita sugerida.</em>
+      <br><br>
+      <b>5.2. Uso do Estoque</b>
+      <br><br>
+      O Usuário é o único responsável por manter seu Estoque atualizado e por verificar a validade e condição dos alimentos reais em sua despensa. A plataforma é uma ferramenta de organização e não possui responsabilidade sobre o consumo de alimentos impróprios.
+      <br><br>
+      <b>5.3. Conduta do Usuário</b>
+      <br><br>
+      É vedado ao Usuário utilizar a Plataforma para:
+      <ul>
+        <li>Transmitir conteúdo ilegal, ofensivo, ameaçador ou que viole a privacidade de terceiros.</li>
+        <li>Tentar obter acesso não autorizado à Plataforma ou a sistemas de terceiros.</li>
+        <li>Interferir no funcionamento normal da Plataforma através de vírus, sobrecarga ou técnicas maliciosas.</li>
+      </ul>
+    </p>
+    <p>
+      <b>6. PROPRIEDADE INTELECTUAL E MARCAS</b>
+      <br><br>
+      <b>6.1. Plataforma MyGeli</b>
+      <br><br>
+      Todos os direitos de propriedade intelectual sobre o software, o design, os logotipos e a marca "MyGeli" pertencem aos seus criadores. Estes Termos concedem ao Usuário uma licença limitada, não exclusiva e revogável para usar a Plataforma para fins pessoais e não comerciais.
+      <br><br>
+      <b>6.2. Marcas de Terceiros</b>
+      <br><br>
+      A menção a nomes de marcas de produtos alimentícios no Estoque ou em receitas é puramente descritiva. A MyGeli não possui afiliação, patrocínio ou endosso por parte dos detentores dessas marcas.
+    </p>
+    <p>
+      <b>7. LIMITAÇÃO DE RESPONSABILIDADE</b>
+      <br><br>
+      A Plataforma MyGeli é fornecida "no estado em que se encontra" ("as is"), sem garantias de qualquer tipo. Em nenhuma hipótese os criadores da MyGeli serão responsáveis por quaisquer danos diretos ou indiretos (incluindo, mas não se limitando a, danos à saúde, perdas financeiras ou desperdício de alimentos) decorrentes do uso da incapacidade de usar a Plataforma.
+    </p>
+    <p>
+      <b>8. MODIFICAÇÃO DOS TERMOS</b>
+      <br><br>
+      Reservamo-nos o direito de modificar estes Termos a qualquer momento. Notificaremos o Usuário sobre alterações significativas. A continuidade do uso da Plataforma após tais modificações constituirá sua concordância com os novos Termos.
+    </p>
+    <p>
+      <b>9. LEGISLAÇÃO APLICÁVEL E FORO</b>
+      <br><br>
+      Estes Termos serão regidos e interpretados de acordo com as leis da República Federativa do Brasil. Fica eleito o foro do domicílio do Usuário para dirimir quaisquer controvérsias oriundas deste documento.
+    </p>
+    <p>
+      <b>10. CONTATO</b>
+      <br><br>
+      Em caso de dúvidas sobre estes Termos de Uso, entre em contato conosco pelo e-mail: foodyzeof@gmail.com.
+    </p>
+    <h1>Política de Privacidade</h1>
+    <br><br>
+    <b>Data de Efetivação:</b> 09 de Setembro de 2025
+    <br><br>
+    <b>Informações do Controlador de Dados</b>
+    <br><br>
+    <p>
+      A MyGeli é uma plataforma de tecnologia desenvolvida e operada por uma equipe de pessoas físicas. Como não conseguimos uma pessoa jurídica (CNPJ) ou endereço físico, a responsabilidade pelo tratamento dos dados pessoais coletados é de nossa equipe de desenvolvimento, representada pelo e-mail foodyzeof@gmail.com. Qualquer comunicação sobre seus dados, ou sobre esta política de privacidade, deve ser direcionada a este endereço de e-mail, que é o nosso principal canal de contato.
+    </p>
+    <p>
+      <b>1. DADOS PESSOAIS COLETADOS</b>
+      <br><br>
+      Para a criação e manutenção de sua conta, coletamos os seguintes dados pessoais:
+      <br>
+      <ul>
+        <li>Nome de usuário;</li>
+        <li>Endereço de e-mail;</li>
+        <li>Senha (de forma criptografada).</li>
+      </ul>
+    </p>
+    <p>
+      <b>2. FINALIDADE DA COLETA</b>
+      <br><br>
+      Os dados pessoais são coletados com a finalidade exclusiva de:
+      <br>
+      <ul>
+        <li>Identificar o Usuário e gerenciar sua conta;</li>
+        <li>Permitir o acesso à Plataforma;</li>
+        <li>Enviar comunicações essenciais sobre o serviço (ex: redefinição de senha).</li>
+      </ul>
+    </p>
+    <p>
+      <b>3. DADOS DE USO E CONTEÚDO</b>
+      <br><br>
+      A Plataforma também processará dados inseridos por você, como:
+      <br>
+      <ul>
+        <li>Itens, quantidades e categorias do seu Estoque;</li>
+        <li>Receitas salvas;</li>
+        <li>Histórico de conversas com a Geli.</li>
+      </ul>
+      <br>
+      Estes dados são essenciais para a prestação do serviço principal da Plataforma e não serão compartilhados ou vendidos.
+    </p>
+    <p>
+      <b>4. BASES LEGAIS PARA O TRATAMENTO DE DADOS</b>
+      <br><br>
+      A Lei Geral de Proteção de Dados Pessoais (LGPD) exige que o tratamento dos seus dados pessoais tenha uma "base legal", ou seja, uma justificativa válida para que os dados possam ser processados. Na MyGeli, utilizamos as seguintes bases legais:
+      <br>
+      <ul>
+        <li><b>Execução de Contrato: </b>Seus dados de cadastro (e-mail, nome de usuário) são processados para que possamos cumprir com os Termos de Uso, permitindo o acesso e a utilização da plataforma.</li>
+        <li><b>Consentimento: </b>Ao utilizar as funcionalidades do chat com a Geli, você nos dá seu consentimento para que o conteúdo de suas mensagens e a lista de itens do seu Estoque sejam enviados para a tecnologia de inteligência artificial do Google, com a finalidade exclusiva de gerar uma resposta para você.</li>
+        <li><b>Cumprimento de Obrigação Legal: </b>De acordo com o Marco Civil da Internet (Lei n 12.965/2014), somos obrigados a manter os registros de acesso à nossa plataforma por 6 (seis) meses para cumprir com a legislação brasileira.</li>
+      </ul>
+    </p>
+    <p>
+      <b>5. COMPARTILHAMENTO COM TERCEIROS (INTELIGÊNCIA ARTIFICIAL)</b>
+      <br><br>
+      Para fornecer as sugestões de receitas, o conteúdo de suas mensagens no chat e a lista de itens do seu Estoque são enviados para processamento pela API do Google Gemini, que é a tecnologia por trás da Geli. A MyGeli não envia dados pessoais como e-mail ou o nome do usuário para o Google. Ao utilizar o chat, você concorda com este compartilhamento de dados não-pessoais com a finalidade exclusiva de gerar a resposta da IA.
+    </p>
+    <p>
+      <b>6. TRANSFERÊNCIA INTERNACIONAL DE DADOS</b>
+      <br><br>
+      Para a prestação do serviço de inteligência artificial, seus dados de uso (histórico de conversas com a Geli e a lista de itens do Estoque) podem ser transferidos para e processados em servidores localizados fora do Brasil, em países como os Estados Unidos, onde o Google opera. <br>
+      Essa transferência de dados é realizada em total conformidade com a LGPD. Adotamos medidas de segurança e garantias contratuais, como as Cláusulas Contratuais Padrão (Standard Contractual Clauses), para assegurar que seus dados recebam um nível de proteção de dados adequado e compatível com a legislação brasileira, garantindo que os terceiros envolvidos cumpram com as mesmas obrigações de segurança e privacidade.
+    </p>
+    <p>
+      <b>7. DIREITOS DO TITULAR</b>
+      <br><br>
+      Em conformidade com a LGPD, o Usuário (titular dos dados) tem o direito de solicitar, a qualquer momento, o acesso, a correção, a anonimização ou a eliminação de seus dados pessoais. Para exercer seus direitos, entre em contato conosco através do e-mail: foodyzeof@gmail.com.
+    </p>
+    <p>
+      <b>8.SEGURANÇA E ARMAZENAMENTO</b>
+      <br><br>
+      Adotamos medidas de segurança técnicas e administrativas para proteger seus dados. Os registros de acesso à aplicação serão mantidos sob sigilo, em ambiente controlado e de segurança, pelo prazo de 6 (seis) meses, conforme determina o Marco Civil da Internet (Lei n° 12.965/2014).
+    </p>
+    <p>
+      <b>9. ATUALIZAÇÕES DA POLÍTICA DE PRIVACIDADE</b>
+      <br><br>
+      A MyGeli se reserva o direito de modificar esta Política de Privacidade a qualquer momento, para adaptá-la a novas leis, tecnologias ou mudanças em nossos serviços. Quando fizermos alterações significativas, nós o notificaremos por e-mail ou por meio de um aviso claro na própria plataforma, para que você possa revisar as mudanças e decidir se continua a utilizar nossos serviços. A continuidade do uso da plataforma após a comunicação das alterações significará sua total concordância com os novos termos.
+    </p>
+  </div>
+
+  <!-- Caminho relativo corrigido para a pasta de CSS/JS -->
+  <script src="{{ url_for('static', filename='register-page/script.js') }}"></script>
+</body>
+</html>

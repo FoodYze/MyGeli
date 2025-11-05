@@ -1,0 +1,130 @@
+/* Crie este arquivo em static/profile-page/style.css */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #0D1B2A; /* Cor de fundo escura, similar à imagem */
+    color: #E0E1DD;
+    margin: 0;
+    display: flex;
+}
+
+/* Estilos do menu e do conteúdo */
+.nav-drawer {
+  /* position: fixed;
+  top: 0;
+  left: 0; */
+  width: 250px;
+  height: 100vh;
+  background-color: #002333; /* Fundo escuro do menu */
+  color: #159A9C;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  z-index: 999;
+  flex-shrink: 0;
+}
+
+.nav-drawer ul {
+  list-style: none;
+  padding: 20px 0;
+  margin: 0;
+}
+
+.nav-drawer li a {
+  display: block;
+  padding: 15px 30px;
+  color: #FFFFFF; /* Cor do texto do menu */
+  text-decoration: none;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.logo {
+  display: flex;
+  margin: 0 auto;
+  margin-top: 20px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 3px solid #3FCEF6;
+  background: none;
+  background-image: url('./assets/geli_icon.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.nav-drawer li a:hover {
+  background-color: #318EAD; /* Fundo do link ao passar o mouse */
+  color: #FFFFFF;
+}
+
+.container {
+    flex-grow: 1;
+    padding: 40px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+header h1 {
+    color: #FFFFFF;
+    margin-top: 0;
+}
+
+header p {
+    color: #778DA9;
+    font-size: 1.1em;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #A9BCD0;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 12px;
+    background-color: #1B263B;
+    border: 1px solid #415A77;
+    border-radius: 6px;
+    color: #E0E1DD;
+    font-size: 1em;
+}
+
+.form-group input:disabled {
+    background-color: #2a3a52;
+    cursor: not-allowed;
+}
+
+
+textarea {
+    resize: vertical;
+}
+
+.btn-save {
+    background-color: #159A9C;
+    color: white;
+    padding: 15px 25px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+.btn-save:hover {
+    background-color: #117a7d;
+}
+
+.alert.success {
+    padding: 15px;
+    margin-bottom: 20px;
+    background-color: #2a9d8f;
+    color: white;
+    border-radius: 6px;
+}
