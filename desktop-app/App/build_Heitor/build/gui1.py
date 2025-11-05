@@ -6,6 +6,10 @@ from mysql.connector import Error
 from pathlib import Path
 from PIL import Image, ImageSequence
 
+from werkzeug.security import check_password_hash
+from session_manager import SessionManager
+from tkinter import messagebox
+
 # --- Conexão com Banco de Dados ---
 def conectar_mysql(host, database, user, password):
     """
@@ -53,10 +57,15 @@ class App(ctk.CTk):
         self.db_connection = db_connection
         self.gif_frames = []
         self.current_frame_index = 0
+        
+        self.session_manager = SessionManager()
+        self.user_id = self.session_manager.get_session()
 
         self._configurar_janela()
         self._criar_fontes()
         self._criar_widgets()
+        
+        self._atualizar_estado_login()
 
     def _configurar_janela(self):
         """Define as propriedades principais da janela (título, tamanho, etc.)."""
@@ -95,7 +104,7 @@ class App(ctk.CTk):
 
         # Ícone de Usuário (continua na esquerda)
         user_icon_image = ctk.CTkImage(Image.open(assets_path / "user_icon.png").resize((32, 32), Image.LANCZOS), size=(40, 40))
-        user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
+        user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._acao_usuario)
         user_button.pack(side="left", padx=10, pady=10)
 
         # Ícone de Configurações (será posicionado na extrema direita)
@@ -141,6 +150,133 @@ class App(ctk.CTk):
         ctk.CTkButton(buttons_frame, text="VER RECEITAS", command=lambda: abrir_gui("gui2.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=1, column=0, padx=20, pady=10, sticky="ew")
         ctk.CTkButton(buttons_frame, text="GERENCIAR ESTOQUE", command=lambda: abrir_gui("gui3.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=2, column=0, padx=20, pady=10, sticky="ew")
         ctk.CTkButton(buttons_frame, text="LISTA DE COMPRAS", command=lambda: abrir_gui("gui4.py"), height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR).grid(row=3, column=0, padx=20, pady=(10, 20), sticky="ew")
+        
+    def _acao_usuario(self):
+        """
+        Verifica se o usuário está logado.
+        Se sim, oferece logout. Se não, abre a tela de login.
+        """
+        if self.user_id:
+            # Usuário está logado, perguntar se quer sair
+            resposta = messagebox.askyesno("Logout", "Você já está logado. Deseja sair?")
+            if resposta: # "Sim"
+                self.session_manager.clear_session()
+                self.user_id = None
+                self._atualizar_estado_login()
+        else:
+            # Usuário não está logado, abrir tela de login
+            self._abrir_tela_login()
+
+    def _abrir_tela_login(self):
+        """Cria a janela pop-up (Toplevel) para o login."""
+        
+        # Impede que múltiplas janelas de login sejam abertas
+        if hasattr(self, 'login_window') and self.login_window.winfo_exists():
+            self.login_window.focus()
+            return
+
+        self.login_window = ctk.CTkToplevel(self)
+        self.login_window.title("Login MyGeli")
+        self.login_window.geometry("350x300")
+        self.login_window.transient(self) # Mantém no topo
+        self.login_window.grab_set()      # Bloqueia a janela principal
+        self.login_window.resizable(False, False)
+
+        # Centralizar Toplevel (relativo à janela principal)
+        x_app = self.winfo_x()
+        y_app = self.winfo_y()
+        w_app = self.winfo_width()
+        h_app = self.winfo_height()
+        x_login = x_app + (w_app // 2) - (350 // 2)
+        y_login = y_app + (h_app // 2) - (300 // 2)
+        self.login_window.geometry(f"350x300+{x_login}+{y_login}")
+
+        # --- Widgets da Janela de Login ---
+        
+        ctk.CTkLabel(self.login_window, text="Login", font=self.large_font).pack(pady=(20, 10))
+        
+        # Email
+        ctk.CTkLabel(self.login_window, text="E-mail:", font=self.small_font, anchor="w").pack(fill="x", padx=40)
+        email_entry = ctk.CTkEntry(self.login_window, width=270, height=35)
+        email_entry.pack(pady=(0, 10))
+        
+        # Senha
+        ctk.CTkLabel(self.login_window, text="Senha:", font=self.small_font, anchor="w").pack(fill="x", padx=40)
+        senha_entry = ctk.CTkEntry(self.login_window, width=270, height=35, show="*") # Oculta a senha
+        senha_entry.pack(pady=(0, 10))
+
+        # Label de Erro
+        error_label = ctk.CTkLabel(self.login_window, text="", text_color="red", font=self.small_font)
+        error_label.pack()
+
+        # Botão Entrar
+        ctk.CTkButton(self.login_window, text="Entrar", width=270, height=40, font=self.button_font,
+                      command=lambda: self._executar_login(email_entry, senha_entry, error_label)
+                      ).pack(pady=10)
+        
+        # Link de Cadastro
+        link_cadastro = ctk.CTkLabel(self.login_window, text="Não tem uma conta? Crie uma.", text_color="#0066CC",
+                                       font=ctk.CTkFont("Poppins Light", 12, underline=True), cursor="hand2")
+        link_cadastro.pack()
+        # link_cadastro.bind("<Button-1>", lambda e: self._abrir_tela_cadastro()) # Futuramente
+
+    def _executar_login(self, email_entry, senha_entry, error_label):
+        """Valida o login contra o banco de dados."""
+        
+        email = email_entry.get().strip()
+        senha = senha_entry.get()
+
+        if not email or not senha:
+            error_label.configure(text="Preencha todos os campos.")
+            return
+
+        if not self.db_connection or not self.db_connection.is_connected():
+            error_label.configure(text="Erro de conexão com o banco.")
+            # Tenta reconectar
+            self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+            return
+        
+        try:
+            cursor = self.db_connection.cursor(dictionary=True)
+            query = "SELECT id, email, senha FROM usuarios WHERE email = %s"
+            cursor.execute(query, (email,))
+            user = cursor.fetchone()
+            cursor.close()
+
+            if not user:
+                error_label.configure(text="E-mail incorreto! Tente novamente.")
+                return
+            
+            # --- COMPARAÇÃO DA SENHA HASH ---
+            # Compara o hash do banco (user['senha']) com a senha digitada (senha)
+            if not check_password_hash(user['senha'], senha):
+                error_label.configure(text="Senha incorreta! Tente novamente.")
+                return
+            
+            # --- SUCESSO NO LOGIN ---
+            self.user_id = user['id']
+            self.session_manager.save_session(self.user_id)
+            self._atualizar_estado_login()
+            self.login_window.destroy() # Fecha a janela de login
+            
+        except Error as e:
+            error_label.configure(text=f"Erro de banco: {e}")
+            print(f"Log: Erro de MySQL em _executar_login: {e}")
+
+    def _atualizar_estado_login(self):
+        """Atualiza a GUI para refletir o estado de login."""
+        if self.user_id:
+            print(f"Log: Usuário {self.user_id} está logado.")
+            # (Opcional) Mudar o ícone para um "logado"
+            # assets_path = Path(__file__).parent / "assets" / "frame1"
+            # logged_in_icon = ctk.CTkImage(Image.open(assets_path / "user_logged_in.png")...
+            # self.user_button.configure(image=logged_in_icon)
+        else:
+            print("Log: Nenhum usuário logado.")
+            # Garante que o ícone padrão está sendo usado
+            # self.user_button.configure(image=self.user_icon_image)
+            
+    # --- FIM DAS NOVAS FUNÇÕES DE LOGIN ---
 
 # --- Execução da Aplicação ---
 if __name__ == "__main__":

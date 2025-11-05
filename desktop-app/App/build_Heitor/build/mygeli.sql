@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS `login_tokens` (
 --
 CREATE TABLE IF NOT EXISTS `produtos` (
   `id_produto` INT(3) UNSIGNED ZEROFILL NOT NULL AUTO_INCREMENT,
+  `user_id` INT(11) NOT NULL,
   `nome_produto` VARCHAR(100) NOT NULL,
   `quantidade_produto` DECIMAL(10,2) UNSIGNED NOT NULL,
   `tipo_volume` VARCHAR(12) NOT NULL,
@@ -102,7 +103,8 @@ CREATE TABLE IF NOT EXISTS `produtos` (
   `data_criacao` TIMESTAMP NOT NULL DEFAULT current_timestamp(),
   `data_modificacao` TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id_produto`),
-  UNIQUE KEY `uk_nome_produto` (`nome_produto`)
+  UNIQUE KEY `uk_nome_produto` (`nome_produto`),
+  CONSTRAINT `fk_produto_usuario` FOREIGN KEY (`user_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -139,17 +141,17 @@ INSERT INTO `login_tokens` (`token_id`, `user_id`, `selector`, `hashed_token`, `
 (3, 3, '035d86a8c1baeb5cada343f214ebac56', 'd94d29b87df1f52272327618f883a3e0c45c89bb84cab2f97fb8a91fb9c0bb3f', '2025-10-30 13:00:40'),
 (4, 4, '7a463059163e25e54d9f03a11827fbd5', '8c46348e9d8a40723d760e7daf5d02437feee409064dff246448b23cb34cb3fc', '2025-10-30 13:42:50');
 
-INSERT INTO `produtos` (`id_produto`, `nome_produto`, `quantidade_produto`, `tipo_volume`, `valor_energetico_kcal`, `acucares_totais_g`, `acucares_adicionados_g`, `carboidratos_g`, `proteinas_g`, `gorduras_totais_g`, `gorduras_saturadas_g`, `gorduras_trans_g`, `fibra_alimentar_g`, `sodio_g`, `data_criacao`, `data_modificacao`) VALUES
-(001, 'Abacaxi', 2.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(002, 'Frango', 1300.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(003, 'Açucar', 300.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(004, 'Ovo', 12.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(005, 'Farinha', 2000.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(006, 'Carne', 900.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(007, 'Batata', 3.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(008, 'Chocolate', 200.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(009, 'Leite', 2000.00, 'Mililitros', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
-(010, 'Cenoura', 2.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57');
+INSERT INTO `produtos` (`id_produto`, `user_id`, `nome_produto`, `quantidade_produto`, `tipo_volume`, `valor_energetico_kcal`, `acucares_totais_g`, `acucares_adicionados_g`, `carboidratos_g`, `proteinas_g`, `gorduras_totais_g`, `gorduras_saturadas_g`, `gorduras_trans_g`, `fibra_alimentar_g`, `sodio_g`, `data_criacao`, `data_modificacao`) VALUES
+(001, 2, 'Abacaxi', 2.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(002, 2, 'Frango', 1300.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(003, 2, 'Açucar', 300.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(004, 2, 'Ovo', 12.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(005, 2, 'Farinha', 2000.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(006, 2, 'Carne', 900.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(007, 2, 'Batata', 3.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(008, 2, 'Chocolate', 200.00, 'Gramas', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(009, 2, 'Leite', 2000.00, 'Mililitros', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57'),
+(010, 2, 'Cenoura', 2.00, 'Unidades', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 11:38:57', '2025-09-30 11:38:57');
 
 
 -- --------------------------------------------------------
