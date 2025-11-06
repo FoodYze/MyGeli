@@ -6,8 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat | MyGeli</title>
   <link rel="icon" href="{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='chatbot-page/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='recipespage/style.css') }}">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+
 </head>
 <body>
 
@@ -35,15 +36,117 @@
     <header class="app-header">
       <h1 class="heading">Minhas receitas</h1>
     </header>
-  
-  <script id="app-data" type="application/json">
-        {{ user_stock_json | safe }}
-    </script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script>
+
+    <!-- =================================== -->
+    <!-- INÍCIO DO CONTEÚDO DAS RECEITAS     -->
+    <!-- =================================== -->
+    <div class="recipe-accordion-container">
+
+      <!-- Receita 1: Bolo de Cenoura -->
+      <div class="recipe-accordion">
+        <button class="recipe-header">
+          <span class="recipe-title">Bolo de Cenoura com Cobertura de Chocolate</span>
+          <span class="recipe-arrow material-symbols-rounded">expand_more</span>
+        </button>
+        <div class="recipe-content">
+          <h4>Ingredientes (Massa)</h4>
+          <ul>
+            <li>3 cenouras médias (cerca de 250g)</li>
+            <li>4 ovos</li>
+            <li>1 xícara (chá) de óleo</li>
+            <li>2 xícaras (chá) de açúcar</li>
+            <li>2 xícaras (chá) de farinha de trigo</li>
+            <li>1 colher (sopa) de fermento em pó</li>
+          </ul>
+          <h4>Ingredientes (Cobertura)</h4>
+          <ul>
+            <li>1 xícara (chá) de açúcar</li>
+            <li>1 xícara (chá) de chocolate em pó</li>
+            <li>1 colher (sopa) de manteiga</li>
+            <li>5 colheres (sopa) de leite</li>
+          </ul>
+          <h4>Modo de Preparo (Massa)</h4>
+          <ol>
+            <li>No liquidificador, bata as cenouras, os ovos e o óleo.</li>
+            <li>Em uma tigela, misture o açúcar e a farinha de trigo.</li>
+            <li>Despeje a mistura do liquidificador na tigela e mexa bem.</li>
+            <li>Adicione o fermento e misture delicadamente.</li>
+            <li>Despeje em uma forma untada e enfarinhada.</li>
+            <li>Asse em forno pré-aquecido a 180°C por cerca de 40 minutos.</li>
+          </ol>
+          <h4>Modo de Preparo (Cobertura)</h4>
+          <ol>
+            <li>Em uma panela, misture todos os ingredientes da cobertura.</li>
+            <li>Leve ao fogo baixo, mexendo sempre, até engrossar.</li>
+            <li>Despeje sobre o bolo ainda quente.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Receita 2: Pão de Queijo -->
+      <div class="recipe-accordion">
+        <button class="recipe-header">
+          <span class="recipe-title">Pão de Queijo Mineiro</span>
+          <span class="recipe-arrow material-symbols-rounded">expand_more</span>
+        </button>
+        <div class="recipe-content">
+          <h4>Ingredientes</h4>
+          <ul>
+            <li>500g de polvilho azedo</li>
+            <li>1 copo (americano) de água</li>
+            <li>1 copo (americano) de leite</li>
+            <li>1/2 copo (americano) de óleo</li>
+            <li>1 colher (sopa) de sal</li>
+            <li>2 ovos</li>
+            <li>400g de queijo parmesão ralado (ou minas padrão)</li>
+          </ul>
+          <h4>Modo de Preparo</h4>
+          <ol>
+            <li>Em uma panela, ferva a água, o leite, o óleo e o sal.</li>
+            <li>Em uma tigela grande, coloque o polvilho e escalde com a mistura fervente. Mexa bem com uma colher.</li>
+            <li>Deixe amornar.</li>
+            <li>Adicione os ovos um a um, misturando bem a cada adição.</li>
+            <li>Acrescente o queijo ralado e misture até a massa ficar homogênea.</li>
+            <li>Unte as mãos com óleo e faça bolinhas.</li>
+            <li>Disponha em uma assadeira (não precisa untar).</li>
+            <li>Asse em forno pré-aquecido a 200°C até dourarem (cerca de 25-30 minutos).</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Receita 3: Brigadeiro Tradicional -->
+      <div class="recipe-accordion">
+        <button class="recipe-header">
+          <span class="recipe-title">Brigadeiro Tradicional</span>
+          <span class="recipe-arrow material-symbols-rounded">expand_more</span>
+        </button>
+        <div class="recipe-content">
+          <h4>Ingredientes</h4>
+          <ul>
+            <li>1 lata de leite condensado</li>
+            <li>4 colheres (sopa) de chocolate em pó</li>
+            <li>1 colher (sopa) de manteiga sem sal</li>
+            <li>Chocolate granulado para enrolar</li>
+          </ul>
+          <h4>Modo de Preparo</h4>
+          <ol>
+            <li>Em uma panela, coloque o leite condensado, o chocolate em pó e a manteiga.</li>
+            <li>Misture bem e leve ao fogo baixo.</li>
+            <li>Mexa sem parar até a mistura desgrudar do fundo da panela (ponto de brigadeiro).</li>
+            <li>Despeje em um prato untado com manteiga e deixe esfriar.</li>
+            <li>Com as mãos untadas, enrole bolinhas e passe no chocolate granulado.</li>
+          </ol>
+        </div>
+      </div>
+
+    </div>
+    <!-- =================================== -->
+    <!-- FIM DO CONTEÚDO DAS RECEITAS        -->
+    <!-- =================================== -->
+    <script>
         const GeliIconURL = "{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}";
     </script>
-  <script src="{{ url_for('static', filename='chatbot-page/script.js') }}"></script>
+  <script src="{{ url_for('static', filename='recipespage/script.js') }}"></script>
+
 </body>
 </html>
