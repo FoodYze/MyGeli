@@ -1,13 +1,67 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat | MyGeli</title>
+  <title>Minhas Receitas | MyGeli</title>
   <link rel="icon" href="{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='recipespage/style.css') }}">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+
+  <!-- Estilos para a caixa de seleção de categoria -->
+  <style>
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap; /* Permite que os itens quebrem linha em telas pequenas */
+      /* A margem inferior existente no CSS original pode ser mantida ou ajustada */
+    }
+
+    .heading {
+      margin: 0; /* Remove margens padrão do h1 para melhor alinhamento */
+    }
+
+    .filter-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem; /* Espaço entre o rótulo e a select box */
+    }
+    
+    .filter-label {
+      font-size: 0.9rem;
+      color: #ffffff;
+      white-space: nowrap; /* Evita que o rótulo quebre linha */
+    }
+
+    .category-filter {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 8px; /* Cantos arredondados */
+      background-color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      font-family: inherit; /* Herda a fonte do corpo */
+    }
+
+    /* Ajuste para telas menores */
+    @media (max-width: 600px) {
+      .app-header {
+        flex-direction: column; /* Empilha o título e o filtro */
+        align-items: flex-start; /* Alinha ambos à esquerda */
+        gap: 1rem; /* Espaço entre o título e o filtro */
+      }
+
+      .filter-container {
+        width: 100%; /* Faz o container do filtro ocupar a largura total */
+      }
+
+      .category-filter {
+        width: 100%; /* Faz a select box ocupar a largura total */
+      }
+    }
+  </style>
 
 </head>
 <body>
@@ -34,7 +88,24 @@
   </nav>
 <div class="container" id="main-content">
     <header class="app-header">
-      <h1 class="heading">Minhas receitas</h1>
+      <h1 class="heading">Minhas Receitas</h1>
+      
+      <!-- Caixa de Seleção de Categoria -->
+      <div class="filter-container">
+        <label for="category-filter" class="filter-label">Filtrar por:</label>
+        <select id="category-filter" class="category-filter" name="category">
+          <option value="todas">Todas as Categorias</option>
+          <option value="entrada">Entrada</option>
+          <option value="prato-principal">Prato Principal</option>
+          <option value="acompanhamento">Acompanhamento</option>
+          <option value="sobremesa">Sobremesa</option>
+          <option value="bebida">Bebida</option>
+          <option value="lanche">Lanche</option>
+          <option value="sopa">Sopa</option>
+          <option value="salada">Salada</option>
+          <option value="cafe-da-manha">Café da Manhã</option>
+        </select>
+      </div>
     </header>
 
     <!-- =================================== -->
