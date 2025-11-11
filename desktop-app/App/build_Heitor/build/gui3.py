@@ -11,6 +11,7 @@ import os
 import google.generativeai as genai
 import threading
 from gui0 import GOOGLE_API_KEY
+from session_manager import SessionManager
 
 # --- NOVOS IMPORTS PARA COMANDO DE VOZ ---
 import speech_recognition as sr
@@ -112,6 +113,18 @@ class InventoryApp(ctk.CTk):
         self.connection = db_connection
         self.local_stock = {}
         self.voice_feedback_window = None
+        
+        self.session_manager = SessionManager()
+        session_data = self.session_manager.get_session()
+        self.user_id = session_data.get("user_id")
+        self.user_first_name = session_data.get("first_name")
+        
+        # --- ADICIONADO: Verificação de Segurança ---
+        if not self.user_id:
+            messagebox.showerror("Erro de Sessão", "Nenhum usuário logado. Por favor, feche esta janela e faça o login na tela principal.")
+            # Destrói a janela imediatamente se não houver usuário
+            self.after(100, self.destroy)
+            return # Para a execução do __init__
 
         if not self.connection:
             self.destroy()
@@ -319,7 +332,7 @@ class InventoryApp(ctk.CTk):
                     name = name_raw.strip().capitalize()
                     qty_base, unit_base = self.converter_para_base(qty_input, selected_unit)
                     
-                    cursor.execute("SELECT * FROM produtos WHERE nome_produto = %s", (name,))
+                    cursor.execute("SELECT * FROM produtos WHERE nome_produto = %s AND user_id = %s", (name, self.user_id))
                     result = cursor.fetchone()
 
                     if acao == 'adicionar':
@@ -327,13 +340,19 @@ class InventoryApp(ctk.CTk):
                             if result['tipo_volume'] != unit_base:
                                 erros.append(f"Unidade incompatível para '{name}'. O estoque usa '{result['tipo_volume']}'."); continue
                             new_qty = float(result['quantidade_produto']) + qty_base
-                            cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s", (new_qty, name))
+                            # --- MODIFICADO: Adicionado filtro de user_id ---
+                            cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s AND user_id = %s", (new_qty, name, self.user_id))
                         else:
                             nutritional_data = get_nutritional_info_from_api(name) or {}
                             keys = ["valor_energetico_kcal", "acucares_totais_g", "acucares_adicionados_g", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
-                            query = f"INSERT INTO produtos (nome_produto, quantidade_produto, tipo_volume, {', '.join(keys)}) VALUES (%s, %s, %s, {', '.join(['%s']*len(keys))})"
-                            values = (name, qty_base, unit_base) + tuple(nutritional_data.get(k) for k in keys)
+                            
+                            # --- MODIFICADO: Adicionada coluna user_id no INSERT ---
+                            query = f"INSERT INTO produtos (nome_produto, quantidade_produto, tipo_volume, user_id, {', '.join(keys)}) VALUES (%s, %s, %s, %s, {', '.join(['%s']*len(keys))})"
+                            # --- MODIFICADO: Adicionado self.user_id aos valores ---
+                            values = (name, qty_base, unit_base, self.user_id) + tuple(nutritional_data.get(k) for k in keys)
+                            
                             cursor.execute(query, values)
+                            
                     elif acao == 'remover':
                         if not result:
                             erros.append(f"Item '{name}' não encontrado no estoque."); continue
@@ -343,8 +362,13 @@ class InventoryApp(ctk.CTk):
                             erros.append(f"Quantidade insuficiente para remover de '{name}'."); continue
                         
                         nova_quantidade = float(result["quantidade_produto"]) - qty_base
-                        if abs(nova_quantidade) < 0.001: cursor.execute("DELETE FROM produtos WHERE nome_produto = %s", (name,))
-                        else: cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s", (nova_quantidade, name))
+                        
+                        # --- MODIFICADO: Adicionado filtro de user_id ---
+                        if abs(nova_quantidade) < 0.001: 
+                            cursor.execute("DELETE FROM produtos WHERE nome_produto = %s AND user_id = %s", (name, self.user_id))
+                        else: 
+                            cursor.execute("UPDATE produtos SET quantidade_produto = %s WHERE nome_produto = %s AND user_id = %s", (nova_quantidade, name, self.user_id))
+                            
                 except Exception as item_error:
                     erros.append(f"Erro ao processar '{comando.get('item', 'item?')}': {item_error}")
 
@@ -392,7 +416,8 @@ class InventoryApp(ctk.CTk):
     def _show_nutritional_info(self, item_name):
         try:
             cursor = self.connection.cursor(dictionary=True)
-            dados_foram_atualizados = self._try_update_nutritional_info_if_missing(item_name, cursor)
+            # --- MODIFICADO: Passa o user_id para a função de update ---
+            dados_foram_atualizados = self._try_update_nutritional_info_if_missing(item_name, cursor, self.user_id)
             cursor.close()
             if dados_foram_atualizados:
                 print("Log: Cache local (self.local_stock) desatualizado. Recarregando do BD...")
@@ -429,10 +454,12 @@ class InventoryApp(ctk.CTk):
         ctk.CTkLabel(main_frame, text="* informação indisponível", font=legend_font, text_color="gray50").grid(row=last_row + 1, column=0, columnspan=2, pady=(15, 0), sticky="w")
         dialog.after(100, dialog.lift)
     
-    def _try_update_nutritional_info_if_missing(self, name, cursor):
+    def _try_update_nutritional_info_if_missing(self, name, cursor, user_id):
         try:
             campos = "valor_energetico_kcal, acucares_totais_g, acucares_adicionados_g, carboidratos_g, proteinas_g, gorduras_totais_g, gorduras_saturadas_g, fibra_alimentar_g, sodio_g"
-            cursor.execute(f"SELECT {campos} FROM produtos WHERE nome_produto = %s", (name,))
+            
+            # --- MODIFICADO: Adicionado filtro de user_id ---
+            cursor.execute(f"SELECT {campos} FROM produtos WHERE nome_produto = %s AND user_id = %s", (name, user_id))
             result = cursor.fetchone()
 
             if result and any(value is None for value in result.values()):
@@ -440,8 +467,11 @@ class InventoryApp(ctk.CTk):
                 nutritional_data = get_nutritional_info_from_api(name)
                 if nutritional_data:
                     keys = list(result.keys())
-                    query = f"UPDATE produtos SET {', '.join([f'{k} = %s' for k in keys])} WHERE nome_produto = %s"
-                    values = [nutritional_data.get(k) for k in keys] + [name]
+                    
+                    # --- MODIFICADO: Adicionado filtro de user_id ---
+                    query = f"UPDATE produtos SET {', '.join([f'{k} = %s' for k in keys])} WHERE nome_produto = %s AND user_id = %s"
+                    values = [nutritional_data.get(k) for k in keys] + [name, user_id]
+                    
                     cursor.execute(query, tuple(values))
                     self.connection.commit()
                     print(f"Dados nutricionais de '{name}' atualizados com sucesso no banco de dados.")
@@ -472,19 +502,21 @@ class InventoryApp(ctk.CTk):
         except Exception as e: messagebox.showerror("Erro", f"Ocorreu um erro ao tentar abrir gui1.py: {e}")
 
     def load_stock_from_db(self, search_term=""):
+        # --- MODIFICADO: Adicionado filtro de user_id ---
         try:
             if not self.connection.is_connected(): self.connection.reconnect()
             cursor = self.connection.cursor(dictionary=True)
+            
             if search_term:
-                query = "SELECT * FROM produtos WHERE nome_produto LIKE %s ORDER BY nome_produto ASC"
-                cursor.execute(query, (f"%{search_term}%",))
+                query = "SELECT * FROM produtos WHERE nome_produto LIKE %s AND user_id = %s ORDER BY nome_produto ASC"
+                cursor.execute(query, (f"%{search_term}%", self.user_id))
             else:
-                query = "SELECT * FROM produtos ORDER BY nome_produto ASC"
-                cursor.execute(query)
+                query = "SELECT * FROM produtos WHERE user_id = %s ORDER BY nome_produto ASC"
+                cursor.execute(query, (self.user_id,))
             
             self.local_stock = {product['nome_produto']: product for product in cursor.fetchall()}
             cursor.close()
-            print(f"Log: Estoque carregado. {len(self.local_stock)} itens encontrados para o termo '{search_term}'.")
+            print(f"Log: Estoque carregado. {len(self.local_stock)} itens encontrados para o user_id {self.user_id} com o termo '{search_term}'.")
         except Error as e:
             messagebox.showerror("Erro de Banco de Dados", f"Falha ao carregar o estoque: {e}"); self.local_stock = {}
 
