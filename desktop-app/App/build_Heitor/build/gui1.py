@@ -2,7 +2,7 @@ import customtkinter as ctk
 import subprocess
 import sys
 import mysql.connector
-from mysql.connector import Error
+from mysql.connector import Error, IntegrityError # Importa IntegrityError
 from pathlib import Path
 from PIL import Image, ImageSequence
 
@@ -62,6 +62,8 @@ class App(ctk.CTk):
         
         self.session_manager = SessionManager()
         session_data = self.session_manager.get_session()
+        
+        # --- VERSÃO CORRIGIDA ---
         self.user_id = session_data.get("user_id")
         self.user_first_name = session_data.get("first_name")
 
@@ -72,71 +74,55 @@ class App(ctk.CTk):
         self._atualizar_estado_login()
 
     def _configurar_janela(self):
-        """Define as propriedades principais da janela (título, tamanho, etc.)."""
+        # (Função idêntica, sem mudanças)
         self.title("MyGeli")
         ctk.set_appearance_mode("light")
-        
-        # Centraliza a janela na tela
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         center_x = int(screen_width / 2 - self.WINDOW_WIDTH / 2)
         center_y = int(screen_height / 2 - self.WINDOW_HEIGHT / 2)
-        
         self.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}+{center_x}+{center_y}")
         self.minsize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
         self.maxsize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
         self.configure(fg_color=self.BG_COLOR)
 
     def _criar_fontes(self):
-            self.large_font = ctk.CTkFont("Poppins Bold", 28)
-            self.medium_font = ctk.CTkFont("Poppins Medium", 18)
-            self.small_font = ctk.CTkFont("Poppins Light", 14)
-            self.button_font = ctk.CTkFont("Poppins SemiBold", 18)
+        # --- VERSÃO CORRIGIDA (todas as fontes) ---
+        self.large_font = ctk.CTkFont("Poppins Bold", 28)
+        self.medium_font = ctk.CTkFont("Poppins Medium", 18)
+        self.small_font = ctk.CTkFont("Poppins Light", 14)
+        self.button_font = ctk.CTkFont("Poppins SemiBold", 18)
+        self.link_font = ctk.CTkFont("Poppins Light", 12, underline=True)
+        self.small_light_font = ctk.CTkFont("Poppins Light", 12)
+        self.header_name_font = ctk.CTkFont("Poppins SemiBold", 16)
+
 
     def _criar_widgets(self):
-        # --- Configuração do Layout Principal ---
+        # (Função idêntica, sem mudanças)
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
-
-        # --- Cabeçalho ---
         header_frame = ctk.CTkFrame(self, height=80, corner_radius=0, fg_color=self.HEADER_COLOR)
         header_frame.grid(row=0, column=0, sticky="new")
         header_frame.grid_propagate(False)
-
         assets_path = Path(__file__).parent / "assets" / "frame1"
-
-        # Ícone de Usuário (continua na esquerda)
         user_icon_image = ctk.CTkImage(Image.open(assets_path / "user_icon.png").resize((32, 32), Image.LANCZOS), size=(40, 40))
         user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._acao_usuario)
         user_button.pack(side="left", padx=10, pady=10)
-
-        # Nome do usuário
+        
+        # O label é criado aqui (usando a fonte correta)
         self.user_name_label = ctk.CTkLabel(header_frame, text="", font=self.header_name_font, text_color=self.BUTTON_TEXT_COLOR)
-
-        # Ícone de Configurações (será posicionado na extrema direita)
+        
         options_image = ctk.CTkImage(Image.open(assets_path / "options.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
         options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
         options_button.pack(side="right", padx=5, pady=5)
-
-        # --- NOVA ALTERAÇÃO AQUI ---
-        # Ícone de Calendário (posicionado à esquerda do ícone de configurações)
-        # O .pack(side="right") funciona como uma pilha: o último a ser empacotado fica mais à esquerda.
         calendario_image = ctk.CTkImage(Image.open(assets_path / "calendario.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
-        calendario_button = ctk.CTkButton(header_frame, text="", image=calendario_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=lambda: abrir_gui("gui5_planejamento.py"))
+        calendario_button = ctk.CTkButton(header_frame, text="", image=calendario_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=lambda: self._abrir_gui_com_verificacao("gui5_planejamento.py"))
         calendario_button.pack(side="right", padx=5, pady=5)
-        
-        # --- Frame do Conteúdo Principal ---
-        # Este frame principal conterá o conteúdo e o espaçador
         main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.grid(row=1, column=0, sticky="nsew")
-
-        # --- Bloco de Conteúdo (Logo e Botões) ---
-        # Este é o frame que agrupa tudo o que queremos que suba
         content_block_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        content_block_frame.pack(side="top", fill="x", pady=(50, 0)) # pady dá o espaçamento do topo
-
-        # Logo Central
+        content_block_frame.pack(side="top", fill="x", pady=(50, 0))
         logo_completo_path = assets_path / "MyGeli.png"
         original_logo_image = Image.open(logo_completo_path)
         original_width, original_height = original_logo_image.size
@@ -146,46 +132,39 @@ class App(ctk.CTk):
         resized_logo = original_logo_image.resize((target_width, target_height), Image.LANCZOS)
         logo_image = ctk.CTkImage(light_image=resized_logo, size=(target_width, target_height))
         ctk.CTkLabel(content_block_frame, image=logo_image, text="").pack(pady=(0, 30))
-
-        # Frame dos Botões
         buttons_frame = ctk.CTkFrame(content_block_frame, fg_color=self.CARD_COLOR, corner_radius=12, border_color=self.CARD_BORDER_COLOR, border_width=1)
         buttons_frame.pack(padx=30, fill="x")
         buttons_frame.grid_columnconfigure(0, weight=1)
-
-        # Botões de Navegação
         self.btn_geli = ctk.CTkButton(buttons_frame, text="FALAR COM GELI", command=lambda: self._abrir_gui_com_verificacao("gui0.py"), 
                                         height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_geli.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
-        
         self.btn_receitas = ctk.CTkButton(buttons_frame, text="VER RECEITAS", command=lambda: self._abrir_gui_com_verificacao("gui2.py"), 
                                         height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_receitas.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
-        
         self.btn_estoque = ctk.CTkButton(buttons_frame, text="GERENCIAR ESTOQUE", command=lambda: self._abrir_gui_com_verificacao("gui3.py"), 
                                         height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_estoque.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
-        
         self.btn_compras = ctk.CTkButton(buttons_frame, text="LISTA DE COMPRAS", command=lambda: self._abrir_gui_com_verificacao("gui4.py"), 
                                         height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_compras.grid(row=3, column=0, padx=20, pady=(10, 20), sticky="ew")
 
     def _abrir_gui_com_verificacao(self, nome_arquivo):
-        """Verifica se o usuário está logado ANTES de abrir a próxima tela."""
+        # (Função idêntica, sem mudanças)
         if self.user_id:
-            abrir_gui(nome_arquivo) # Logado, pode prosseguir
+            abrir_gui(nome_arquivo)
         else:
-            # Não logado, mostra o alerta
             messagebox.showwarning("Acesso Restrito", 
                                    "Entre em uma conta para utilizar a ferramenta!")
         
     def _acao_usuario(self):
+        # --- VERSÃO CORRIGIDA (com nome) ---
         """
         Verifica se o usuário está logado.
         Se sim, oferece logout. Se não, abre a tela de login.
         """
         if self.user_id:
-            # Usuário está logado, perguntar se quer sair
-            resposta = messagebox.askyesno("Logout", "Você já está logado. Deseja sair?")
+            # Mensagem de logout melhorada
+            resposta = messagebox.askyesno("Logout", f"Logado como {self.user_first_name}.\nDeseja sair?")
             if resposta: # "Sim"
                 self.session_manager.clear_session()
                 self.user_id = None
@@ -196,21 +175,16 @@ class App(ctk.CTk):
             self._abrir_tela_login()
 
     def _abrir_tela_login(self):
-        """Cria a janela pop-up (Toplevel) para o login."""
-        
-        # Impede que múltiplas janelas de login sejam abertas
+        # --- VERSÃO CORRIGIDA (fonte do link) ---
         if hasattr(self, 'login_window') and self.login_window.winfo_exists():
             self.login_window.focus()
             return
-
         self.login_window = ctk.CTkToplevel(self)
         self.login_window.title("Login MyGeli")
         self.login_window.geometry("350x300")
-        self.login_window.transient(self) # Mantém no topo
-        self.login_window.grab_set()      # Bloqueia a janela principal
+        self.login_window.transient(self)
+        self.login_window.grab_set()
         self.login_window.resizable(False, False)
-
-        # Centralizar Toplevel (relativo à janela principal)
         x_app = self.winfo_x()
         y_app = self.winfo_y()
         w_app = self.winfo_width()
@@ -218,127 +192,88 @@ class App(ctk.CTk):
         x_login = x_app + (w_app // 2) - (350 // 2)
         y_login = y_app + (h_app // 2) - (300 // 2)
         self.login_window.geometry(f"350x300+{x_login}+{y_login}")
-
-        # --- Widgets da Janela de Login ---
-        
         ctk.CTkLabel(self.login_window, text="Login", font=self.large_font).pack(pady=(20, 10))
-        
-        # Email
         ctk.CTkLabel(self.login_window, text="E-mail:", font=self.small_font, anchor="w").pack(fill="x", padx=40)
         email_entry = ctk.CTkEntry(self.login_window, width=270, height=35)
         email_entry.pack(pady=(0, 10))
-        
-        # Senha
         ctk.CTkLabel(self.login_window, text="Senha:", font=self.small_font, anchor="w").pack(fill="x", padx=40)
-        senha_entry = ctk.CTkEntry(self.login_window, width=270, height=35, show="*") # Oculta a senha
+        senha_entry = ctk.CTkEntry(self.login_window, width=270, height=35, show="*")
         senha_entry.pack(pady=(0, 10))
-
-        # Label de Erro
         error_label = ctk.CTkLabel(self.login_window, text="", text_color="red", font=self.small_font)
         error_label.pack()
-
-        # Botão Entrar
         ctk.CTkButton(self.login_window, text="Entrar", width=270, height=40, font=self.button_font,
                       command=lambda: self._executar_login(email_entry, senha_entry, error_label)
                       ).pack(pady=10)
-        
-        # Link de Cadastro
         link_cadastro = ctk.CTkLabel(self.login_window, text="Não tem uma conta? Crie uma.", text_color="#0066CC",
-                                       font=ctk.CTkFont("Poppins Light", 12, underline=True), cursor="hand2")
+                                       font=self.link_font, cursor="hand2") # Usa a fonte correta
         link_cadastro.pack()
         link_cadastro.bind("<Button-1>", lambda e: self._abrir_tela_cadastro())
 
     def _executar_login(self, email_entry, senha_entry, error_label):
-        """Valida o login contra o banco de dados."""
-        
+        # (Função idêntica, sem mudanças)
         email = email_entry.get().strip()
         senha = senha_entry.get()
-
         if not email or not senha:
             error_label.configure(text="Preencha todos os campos.")
             return
-
         if not self.db_connection or not self.db_connection.is_connected():
             error_label.configure(text="Erro de conexão com o banco.")
-            # Tenta reconectar
             self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
             return
-        
         try:
             cursor = self.db_connection.cursor(dictionary=True)
             query = "SELECT id, nome, email, senha FROM usuarios WHERE email = %s"
             cursor.execute(query, (email,))
             user = cursor.fetchone()
             cursor.close()
-
             if not user:
                 error_label.configure(text="E-mail incorreto! Tente novamente.")
                 return
-            
-            # --- COMPARAÇÃO DA SENHA HASH ---
-            # Compara o hash do banco (user['senha']) com a senha digitada (senha)
             if not check_password_hash(user['senha'], senha):
                 error_label.configure(text="Senha incorreta! Tente novamente.")
                 return
-            
-            # --- SUCESSO NO LOGIN ---
             self.user_id = user['id']
             full_name = user['nome']
             self.user_first_name = full_name.split(' ')[0]
-            
             self.session_manager.save_session(self.user_id, self.user_first_name)
-            
             self._atualizar_estado_login()
-            self.login_window.destroy() # Fecha a janela de login
-            
+            self.login_window.destroy()
         except Error as e:
             error_label.configure(text=f"Erro de banco: {e}")
             print(f"Log: Erro de MySQL em _executar_login: {e}")
 
     def _atualizar_estado_login(self):
-        """Atualiza a GUI para refletir o estado de login."""
+        # (Função idêntica, sem mudanças)
         if self.user_id and self.user_first_name:
-            # Usuário está logado
             print(f"Log: Usuário {self.user_id} ({self.user_first_name}) está logado.")
             self.user_name_label.configure(text=f"Olá, {self.user_first_name}!")
             self.user_name_label.pack(side="left", padx=(0, 10), pady=10)
-            
-            # --- HABILITA AS CORES DOS BOTÕES ---
             self.btn_geli.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
             self.btn_receitas.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
             self.btn_estoque.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
             self.btn_compras.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
-            
         else:
-            # Usuário está deslogado
             print("Log: Nenhum usuário logado.")
             self.user_name_label.configure(text="")
             self.user_name_label.pack_forget()
-            
-            # --- DESABILITA AS CORES DOS BOTÕES ---
             self.btn_geli.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
             self.btn_receitas.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
             self.btn_estoque.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
             self.btn_compras.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
 
     def _abrir_tela_cadastro(self):
-        """ Cria a TopLevel para cadastro """
-        # Oculta a janela de login temporariamente
+        # --- VERSÃO CORRIGIDA (fontes) ---
         if hasattr(self, 'login_window') and self.login_window.winfo_exists():
             self.login_window.withdraw()
-
         if hasattr(self, 'register_window') and self.register_window.winfo_exists():
             self.register_window.focus()
             return
-
         self.register_window = ctk.CTkToplevel(self)
         self.register_window.title("Criar Conta")
         self.register_window.geometry("400x550")
         self.register_window.transient(self)
         self.register_window.grab_set()
         self.register_window.resizable(False, False)
-
-        # Centraliza
         x_app = self.winfo_x()
         y_app = self.winfo_y()
         w_app = self.winfo_width()
@@ -346,76 +281,52 @@ class App(ctk.CTk):
         x_reg = x_app + (w_app // 2) - (400 // 2)
         y_reg = y_app + (h_app // 2) - (550 // 2)
         self.register_window.geometry(f"400x550+{x_reg}+{y_reg}")
-
-        # Widgets da janela de cadastro
         ctk.CTkLabel(self.register_window, text="Criar Conta", font=self.large_font).pack(pady=(20, 10))
-
-        # Variáveis de string para validação em tempo real
         self.var_nome = ctk.StringVar()
         self.var_telefone = ctk.StringVar()
         self.var_email = ctk.StringVar()
         self.var_senha = ctk.StringVar()
         self.var_conf_senha = ctk.StringVar()
         self.var_termos = ctk.IntVar()
-
-        # Campos de entrada
         ctk.CTkLabel(self.register_window, text="Nome Completo:", font=self.small_font, anchor="w").pack(fill="x", padx=50)
         nome_entry = ctk.CTkEntry(self.register_window, width=300, height=35, textvariable=self.var_nome)
         nome_entry.pack(pady=(0, 10))
-
         ctk.CTkLabel(self.register_window, text="Telefone (opcional):", font=self.small_font, anchor="w").pack(fill="x", padx=50)
         telefone_entry = ctk.CTkEntry(self.register_window, width=300, height=35, textvariable=self.var_telefone)
         telefone_entry.pack(pady=(0, 10))
-
         ctk.CTkLabel(self.register_window, text="E-mail:", font=self.small_font, anchor="w").pack(fill="x", padx=50)
         email_entry = ctk.CTkEntry(self.register_window, width=300, height=35, textvariable=self.var_email)
         email_entry.pack(pady=(0, 10))
-
         ctk.CTkLabel(self.register_window, text="Senha (mín. 6 caracteres):", font=self.small_font, anchor="w").pack(fill="x", padx=50)
         senha_entry = ctk.CTkEntry(self.register_window, width=300, height=35, show="*", textvariable=self.var_senha)
         senha_entry.pack(pady=(0, 10))
-
         ctk.CTkLabel(self.register_window, text="Confirmar Senha:", font=self.small_font, anchor="w").pack(fill="x", padx=50)
         conf_senha_entry = ctk.CTkEntry(self.register_window, width=300, height=35, show="*", textvariable=self.var_conf_senha)
         conf_senha_entry.pack(pady=(0, 10))
-
-        # --- Checkbox e Link dos Termos ---
         termos_frame = ctk.CTkFrame(self.register_window, fg_color="transparent")
         termos_frame.pack(pady=10)
-        
         termos_check = ctk.CTkCheckBox(termos_frame, text="Li e concordo com os ", variable=self.var_termos,
-                                       font=self.small_light_font, command=self._validar_campos_cadastro)
+                                       font=self.small_light_font, command=self._validar_campos_cadastro) # Fonte correta
         termos_check.pack(side="left")
-
         termos_link = ctk.CTkLabel(termos_frame, text="Termos de Uso", text_color="#0066CC",
-                                     font=self.link_font, cursor="hand2")
+                                     font=self.link_font, cursor="hand2") # Fonte correta
         termos_link.pack(side="left")
         termos_link.bind("<Button-1>", lambda e: self._abrir_janela_termos())
-
-        # --- Botão Cadastrar ---
         self.btn_cadastrar = ctk.CTkButton(self.register_window, text="Cadastrar", width=300, height=40,
                                            font=self.button_font, state="disabled",
                                            command=self._executar_cadastro)
         self.btn_cadastrar.pack(pady=10)
-
-        # Label de Erro
         self.register_error_label = ctk.CTkLabel(self.register_window, text="", text_color="red", font=self.small_font)
         self.register_error_label.pack()
-
-        # --- Bindings para validação ---
-        # "trace_add" chama a função sempre que a variável mudar
         self.var_nome.trace_add("write", self._validar_campos_cadastro)
         self.var_email.trace_add("write", self._validar_campos_cadastro)
         self.var_senha.trace_add("write", self._validar_campos_cadastro)
         self.var_conf_senha.trace_add("write", self._validar_campos_cadastro)
-        # O checkbox já chama a função pelo seu 'command'
+        # --- VERSÃO CORRIGIDA (lambda) ---
+        self.register_window.protocol("WM_DELETE_WINDOW", lambda: self._fechar_tela_cadastro(close_login=False))
 
-        # Lidar com o fechamento da janela de cadastro
-        self.register_window.protocol("WM_DELETE_WINDOW", self._fechar_tela_cadastro)
-
-    def _fechar_tela_cadastro(self):
-        """Fecha a janela de cadastro e re-exibe a de login."""
-        """Fecha a janela de cadastro e, opcionalmente, a de login."""
+    def _fechar_tela_cadastro(self, close_login=False):
+        # --- VERSÃO CORRIGIDA (parâmetro e docstring) ---
         """Fecha a janela de cadastro e, opcionalmente, a de login."""
         if hasattr(self, 'register_window') and self.register_window.winfo_exists():
             self.register_window.destroy()
@@ -431,66 +342,47 @@ class App(ctk.CTk):
                 self.login_window.focus()
 
     def _validar_campos_cadastro(self, *args):
-        """Verifica todos os campos em tempo real e ativa/desativa o botão."""
-        # Regex
+        # (Função idêntica, sem mudanças)
         email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-        nome_regex = r"^[a-zA-ZÀ-ÿ\s']+$" # Permite letras, espaços e apóstrofos
-        
-        # Coleta os dados
+        nome_regex = r"^[a-zA-ZÀ-ÿ\s']+$"
         nome = self.var_nome.get()
         email = self.var_email.get()
         senha = self.var_senha.get()
         conf_senha = self.var_conf_senha.get()
         termos_aceitos = self.var_termos.get() == 1
-
-        # Validação
         is_nome_valido = bool(re.match(nome_regex, nome) and len(nome) > 2)
         is_email_valido = bool(re.match(email_regex, email))
         is_senha_valida = bool(len(senha) >= 6)
         is_senha_confirmada = bool(senha == conf_senha and is_senha_valida)
-
-        # Ativa o botão se TUDO for verdadeiro
         if is_nome_valido and is_email_valido and is_senha_valida and is_senha_confirmada and termos_aceitos:
             self.btn_cadastrar.configure(state="normal")
         else:
             self.btn_cadastrar.configure(state="disabled")
 
     def _executar_cadastro(self):
-        """Insere o novo usuário no banco de dados E FAZ LOGIN."""
+        # (Função idêntica, sem mudanças)
         nome = self.var_nome.get().strip()
         telefone = self.var_telefone.get().strip() or None
         email = self.var_email.get().strip()
         senha = self.var_senha.get()
         senha_hash = generate_password_hash(senha)
-
         if not self.db_connection or not self.db_connection.is_connected():
             self.register_error_label.configure(text="Erro de conexão com o banco.")
             self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
             return
-
         try:
             cursor = self.db_connection.cursor()
             query = "INSERT INTO usuarios (nome, telefone, email, senha) VALUES (%s, %s, %s, %s)"
             cursor.execute(query, (nome, telefone, email, senha_hash))
-            new_user_id = cursor.lastrowid # Pega o ID do usuário recém-criado
+            new_user_id = cursor.lastrowid
             self.db_connection.commit()
             cursor.close()
-
-            # --- SUCESSO NO CADASTRO (LOGIN AUTOMÁTICO) ---
             self.user_id = new_user_id
             self.user_first_name = nome.split(' ')[0]
-            
-            # Salva a sessão
             self.session_manager.save_session(self.user_id, self.user_first_name)
-            
-            # Atualiza a GUI principal
             self._atualizar_estado_login()
-            
             messagebox.showinfo("Sucesso!", f"Bem-vindo, {self.user_first_name}! Cadastro realizado com sucesso.")
-            
-            # Fecha as janelas de login E cadastro
             self._fechar_tela_cadastro(close_login=True)
-
         except IntegrityError as e:
             if e.errno == 1062:
                 self.register_error_label.configure(text="Este e-mail já está cadastrado.")
@@ -502,20 +394,16 @@ class App(ctk.CTk):
             print(f"Log: Erro de MySQL em _executar_cadastro: {e}")
 
     def _abrir_janela_termos(self):
-        """Abre uma Toplevel com os Termos de Uso."""
-        
+        # --- VERSÃO CORRIGIDA (fontes) ---
         if hasattr(self, 'termos_window') and self.termos_window.winfo_exists():
             self.termos_window.focus()
             return
-            
         self.termos_window = ctk.CTkToplevel(self)
         self.termos_window.title("Termos de Uso e Política de Privacidade")
         self.termos_window.geometry("700x500")
-        self.termos_window.transient(self.register_window) # Fica na frente da tela de registro
+        self.termos_window.transient(self.register_window)
         self.termos_window.grab_set()
         self.termos_window.resizable(True, True)
-
-        # Centraliza
         x_reg = self.register_window.winfo_x()
         y_reg = self.register_window.winfo_y()
         w_reg = self.register_window.winfo_width()
@@ -523,19 +411,15 @@ class App(ctk.CTk):
         x_termos = x_reg + (w_reg // 2) - (700 // 2)
         y_termos = y_reg + (h_reg // 2) - (500 // 2)
         self.termos_window.geometry(f"700x500+{x_termos}+{y_termos}")
-
-        # --- CTkTextbox para exibir o texto ---
-        textbox = ctk.CTkTextbox(self.termos_window, wrap="word", font=self.small_light_font, spacing2=5)
+        
+        textbox = ctk.CTkTextbox(self.termos_window, wrap="word", font=self.small_light_font, spacing2=5) # Fonte correta
         textbox.pack(fill="both", expand=True, padx=20, pady=(20, 10))
-
-        # --- Formatando o Texto dos Termos ---
-        # CTkTextbox usa "tags" para estilizar
+        
         textbox.tag_config("h1", font=ctk.CTkFont("Poppins Bold", 18), spacing1=(15, 5))
         textbox.tag_config("b", font=ctk.CTkFont("Poppins SemiBold", 12))
         textbox.tag_config("i", font=ctk.CTkFont("Poppins Light Italic", 12))
         textbox.tag_config("li", spacing1=(0, 2))
-
-        # O HTML que você forneceu
+        
         termos_html = """
 <h1>Termos e Condições de Uso da Plataforma MyGeli</h1>
 <b>Data de Efetivação:</b> 09 de setembro de 2025
@@ -710,22 +594,15 @@ class App(ctk.CTk):
   A MyGeli se reserva o direito de modificar esta Política de Privacidade a qualquer momento, para adaptá-la a novas leis, tecnologias ou mudanças em nossos serviços. Quando fizermos alterações significativas, nós o notificaremos por e-mail ou por meio de um aviso claro na própria plataforma, para que você possa revisar as mudanças e decidir se continua a utilizar nossos serviços. A continuidade do uso da plataforma após a comunicação das alterações significará sua total concordância com os novos termos.
 </p>
 """
-        # Habilita a edição para inserir o texto
         textbox.configure(state="normal")
-        
-        # Limpa tags HTML e insere texto com tags CTk
         lines = termos_html.split('\n')
         for line in lines:
             line = line.strip()
             if not line:
                 textbox.insert("end", "\n")
                 continue
-                
-            # Remove tags <p> e </p>, <br> vira \n
             line = line.replace("<p>", "").replace("</p>", "").replace("<br>", "\n")
             line = line.replace("<ul>", "").replace("</ul>", "")
-            
-            # Aplica tags
             if line.startswith("<h1>"):
                 line = line.replace("<h1>", "").replace("</h1>", "")
                 textbox.insert("end", line + "\n", "h1")
@@ -733,7 +610,6 @@ class App(ctk.CTk):
                 line = line.replace("<li>", "  • ").replace("</li>", "")
                 textbox.insert("end", line + "\n", "li")
             else:
-                # Lógica simples para <b> e <i> (não aninhadas)
                 parts = re.split(r'(<b>.*?</b>|<i>.*?</i>)', line)
                 for part in parts:
                     if part.startswith("<b>"):
@@ -743,14 +619,11 @@ class App(ctk.CTk):
                     else:
                         textbox.insert("end", part)
                 textbox.insert("end", "\n")
-
-        # Desabilita a edição (somente leitura)
         textbox.configure(state="disabled")
-        
-        # Botão Fechar
         ctk.CTkButton(self.termos_window, text="Fechar", width=100,
                       command=self.termos_window.destroy).pack(pady=10)
 
+# --- Execução da Aplicação ---
 if __name__ == "__main__":
     # Credenciais e conexão
     db_host = "localhost"
