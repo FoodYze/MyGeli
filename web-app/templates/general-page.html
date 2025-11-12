@@ -1,56 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
-  <title>Início | MyGeli</title>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <title>Início | MyGeli</title>
 </head>
 <body>
-  
-  <div class="loader-wrapper" id="loader-wrapper">
-    <div class="loader-container">
-      <p class="loader-text">Carregando</p>
-      <div class="progress-bar-container">
-        <div class="progress-bar" id="progress-bar"></div>
-      </div>
-      <p class="progress-percentage" id="progress-percentage">0%</p>
-    </div>
-  </div>
+  
+  <div class="loader-wrapper" id="loader-wrapper">
+    <div class="loader-container">
+      <p class="loader-text">Carregando</p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <p class="progress-percentage" id="progress-percentage">0%</p>
+    </div>
+  </div>
 
-  <nav class="nav-drawer" aria-label="Menu de Navegação Principal">
-    <div class="logo"></div>
-    <ul>
-      <li style="background-color: #318EAD;"><a href="#">Geral</a></li>
-      <li><a href="#">Chat</a></li>
-      <li><a href="#">Receitas</a></li>
-      <li><a href="#">Estoque</a></li>
-      <li><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
-    </ul>
-  </nav>
+  <nav class="nav-drawer" aria-label="Menu de Navegação Principal">
+    <div class="logo"></div>
+    <ul>
+      <li style="background-color: #318EAD;"><a href="#">Geral</a></li>
+      <li><a href="#">Chat</a></li>
+            <li><a href="{{ url_for('recipes_page') }}">Receitas</a></li>
+      <li><a href="#">Estoque</a></li>
+      <li><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
+    </ul>
+  </nav>
 
-  <div class="container" id="main-content">
-    <header class="app-header">
-      <h1 class="heading">Olá</h1>
-      <h2 class="sub-heading">Como posso te ajudar?</h2>
-    </header>
+  <div class="container" id="main-content">
+    <header class="app-header">
+      <h1 class="heading">Olá</h1>
+      <h2 class="sub-heading">Como posso te ajudar?</h2>
+    </header>
 
-    <button id="theme-toggle-btn" class="material-symbols-rounded">light_mode</button>
-  </div>
+    <button id="theme-toggle-btn" class="material-symbols-rounded">light_mode</button>
+  </div>
 
-  <script id="app-data" type="application/json">
-        {{ user_stock_json | safe }}
-    </script>
-  
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script>
-        const GeliIconURL = "{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}";
-    </script>
+  <script id="app-data" type="application/json">
+        {{ user_stock_json | safe }}
+    </script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+        const GeliIconURL = "{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}";
+    </script>
 
-  <script src="{{ url_for('static', filename='chatbot-page/script.js') }}"></script>
+  <script src="{{ url_for('static', filename='chatbot-page/script.js') }}"></script>
 </body>
 </html>
