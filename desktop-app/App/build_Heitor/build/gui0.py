@@ -332,18 +332,13 @@ class App(ctk.CTk):
                                       font=("Helvetica", 22, "bold"), text_color="white", command=self.voltar)
         self.back_btn.pack(side="left", padx=(10,5), pady=7.5)
 
-        self.title_label = ctk.CTkLabel(self.header, text=f"Geli (Olá, {self.user_first_name}!)",
+        self.title_label = ctk.CTkLabel(self.header, text=f"Geli",
                                         font=("Helvetica", 20, "bold"), text_color="white")
         self.title_label.pack(side="left", padx=(5,0), pady=10)
 
-        self.back_btn = ctk.CTkButton(self.header, text="←", width=35, height=35,
-                                      fg_color="transparent", hover_color="#0066CC",
-                                      font=("Helvetica", 22, "bold"), text_color="white", command=self.voltar)
-        self.back_btn.pack(side="left", padx=(10,5), pady=7.5)
-
-        self.title_label = ctk.CTkLabel(self.header, text="Geli",
+        self.title_label = ctk.CTkLabel(self.header, text=f"Olá, {self.user_first_name}!",
                                         font=("Helvetica", 20, "bold"), text_color="white")
-        self.title_label.pack(side="left", padx=(5,0), pady=10)
+        self.title_label.pack(side="right", padx=(5,0), pady=10)
 
         self.chat_frame = ctk.CTkScrollableFrame(self, fg_color="#F0F0F0")
         self.chat_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)

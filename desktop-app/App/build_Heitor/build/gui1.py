@@ -27,7 +27,6 @@ def conectar_mysql(host, database, user, password):
 
 # --- Navegação entre Telas ---
 def abrir_gui(nome_arquivo):
-    """Fecha a janela atual e abre um novo script de GUI."""
     if app:
         app.destroy()
     try:
@@ -35,6 +34,86 @@ def abrir_gui(nome_arquivo):
         subprocess.Popen([sys.executable, caminho_script])
     except Exception as e:
         print(f"Erro ao tentar abrir {nome_arquivo}: {e}")
+
+
+class SettingsWindow(ctk.CTkToplevel):
+    """
+    Uma classe dedicada para a janela de Configurações.
+    Isso isola a lógica e evita travamentos ao mudar o tema.
+    """
+    def __init__(self, parent_app):
+        super().__init__(parent_app)
+        
+        self.parent_app = parent_app # Guarda a referência da janela principal
+
+        self.title("Configurações")
+        self.transient(parent_app)
+        self.resizable(False, False)
+
+        # Centraliza na janela principal
+        x_app = parent_app.winfo_x()
+        y_app = parent_app.winfo_y()
+        w_app = parent_app.winfo_width()
+        h_app = parent_app.winfo_height()
+        x_config = x_app + (w_app // 2) - (380 // 2)
+        y_config = y_app + (h_app // 2) - (500 // 2)
+        self.geometry(f"380x500+{x_config}+{y_config}")
+
+        self._setup_ui()
+
+        # Mecanismos de Foco e Fechamento Seguro
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.grab_set() # Captura o foco
+        self.wait_window() # Espera até que esta janela seja fechada
+
+    def _setup_ui(self):
+        # Mantenha as referências para as fontes da janela principal
+        self.medium_font = self.parent_app.medium_font
+        self.small_font = self.parent_app.small_font
+        self.small_light_font = self.parent_app.small_light_font
+        self.button_font = self.parent_app.button_font
+        self.tab_font = self.parent_app.tab_font
+        
+        # Criar abas
+        tab_view = ctk.CTkTabview(self, segmented_button_selected_color=self.parent_app.BUTTON_COLOR,
+                                  segmented_button_selected_hover_color=self.parent_app.BUTTON_HOVER_COLOR)
+        tab_view.pack(padx=20, pady=20, fill="both", expand=True)
+
+        tab_view.add("Conta")
+        tab_view.add("Aparência")
+        tab_view.add("Sobre")
+        tab_view.tab("Conta").grid_columnconfigure(0, weight=1)
+        tab_view.tab("Aparência").grid_columnconfigure(0, weight=1)
+        
+        # Popular as abas
+        self._criar_aba_conta(tab_view.tab("Conta"))
+        self._criar_aba_aparencia(tab_view.tab("Aparência"))
+        self._criar_aba_sobre(tab_view.tab("Sobre"))
+
+    def _on_close(self):
+        """Libera o foco ANTES de fechar a janela, evitando o travamento."""
+        self.grab_release()
+        self.destroy()
+        
+    def _carregar_dados_usuario(self):
+        """Carrega os dados usando a conexão garantida pela janela principal."""
+        # Acessa o método da janela pai para garantir que o BD esteja conectado
+        if not self.parent_app._garantir_conexao_db():
+            return None
+        
+        try:
+            # USA a conexão da janela principal (parent_app)
+            cursor = self.parent_app.db_connection.cursor(dictionary=True)
+            # --- CORREÇÃO IMPORTANTE ---
+            # O nome da coluna no seu código de login/cadastro é 'nome' e contém o nome completo.
+            # Se sua tabela usar 'nome_completo', mude a linha abaixo.
+            cursor.execute("SELECT nome, email FROM usuarios WHERE id = %s", (self.parent_app.user_id,))
+            resultado = cursor.fetchone()
+            cursor.close()
+            return resultado
+        except Error as e:
+            print(f"Log: Erro de MySQL ao buscar dados do usuário na SettingsWindow: {e}")
+            return None
 
 # --- Classe Principal da Aplicação ---
 class App(ctk.CTk):
@@ -56,10 +135,17 @@ class App(ctk.CTk):
     BUTTON_DANGER_COLOR = "#D32F2F" # Vermelho
     BUTTON_DANGER_HOVER_COLOR = "#B71C1C" # Vermelho escuro
 
-    def __init__(self, db_connection):
+    def __init__(self, db_connection, db_host, db_name, db_usuario, db_senha):
         super().__init__()
         
-        self.db_connection = db_connection
+        # Esta parte é a que recebe e guarda as novas variáveis
+        self.db_connection = db_connection  
+        self.db_host = db_host
+        self.db_name = db_name
+        self.db_usuario = db_usuario
+        self.db_senha = db_senha
+        # O resto do método continua como antes
+        
         self.gif_frames = []
         self.current_frame_index = 0
         
@@ -76,7 +162,6 @@ class App(ctk.CTk):
         self._atualizar_estado_login()
 
     def _configurar_janela(self):
-        # (Função idêntica, sem mudanças)
         self.title("MyGeli")
         ctk.set_appearance_mode("light")
         screen_width = self.winfo_screenwidth()
@@ -86,10 +171,8 @@ class App(ctk.CTk):
         self.geometry(f"{self.WINDOW_WIDTH}x{self.WINDOW_HEIGHT}+{center_x}+{center_y}")
         self.minsize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
         self.maxsize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
-        self.configure(fg_color=self.BG_COLOR)
 
     def _criar_fontes(self):
-        # --- VERSÃO CORRIGIDA (todas as fontes) ---
         self.large_font = ctk.CTkFont("Poppins Bold", 28)
         self.medium_font = ctk.CTkFont("Poppins Medium", 18)
         self.small_font = ctk.CTkFont("Poppins Light", 14)
@@ -97,6 +180,7 @@ class App(ctk.CTk):
         self.link_font = ctk.CTkFont("Poppins Light", 12, underline=True)
         self.small_light_font = ctk.CTkFont("Poppins Light", 12)
         self.header_name_font = ctk.CTkFont("Poppins SemiBold", 16)
+        self.tab_font = ctk.CTkFont("Poppins Medium", 14)
 
 
     def _criar_widgets(self):
@@ -113,7 +197,7 @@ class App(ctk.CTk):
         user_button.pack(side="left", padx=10, pady=10)
         self.user_name_label = ctk.CTkLabel(header_frame, text="", font=self.header_name_font, text_color=self.BUTTON_TEXT_COLOR)
         options_image = ctk.CTkImage(Image.open(assets_path / "options.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
-        options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
+        options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._abrir_tela_configuracoes)
         options_button.pack(side="right", padx=5, pady=5)
         calendario_image = ctk.CTkImage(Image.open(assets_path / "calendario.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
         calendario_button = ctk.CTkButton(header_frame, text="", image=calendario_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=lambda: self._abrir_gui_com_verificacao("gui5_planejamento.py"))
@@ -285,7 +369,258 @@ class App(ctk.CTk):
             if cursor:
                 cursor.close()
     
-    # --- FIM DAS NOVAS FUNÇÕES ---
+    def _abrir_tela_configuracoes(self):
+        """Abre a janela de configurações do aplicativo."""
+        if not self.user_id:
+            messagebox.showwarning("Acesso Negado", "Você precisa estar logado para acessar as configurações.")
+            return
+
+        if hasattr(self, 'config_window') and self.config_window.winfo_exists():
+            self.config_window.focus()
+            return
+            
+        self.config_window = ctk.CTkToplevel(self)
+        self.config_window.title("Configurações")
+        self.config_window.geometry("380x500")
+        self.config_window.transient(self)
+        self.config_window.grab_set()
+        self.config_window.resizable(False, False)
+
+        x_app, y_app, w_app, h_app = self.winfo_x(), self.winfo_y(), self.winfo_width(), self.winfo_height()
+        x_config = x_app + (w_app // 2) - (380 // 2)
+        y_config = y_app + (h_app // 2) - (500 // 2)
+        self.config_window.geometry(f"380x500+{x_config}+{y_config}")
+        
+        # Criar abas
+        tab_view = ctk.CTkTabview(self.config_window, segmented_button_selected_color=self.BUTTON_COLOR,
+                                  segmented_button_selected_hover_color=self.BUTTON_HOVER_COLOR)
+        tab_view.pack(padx=20, pady=20, fill="both", expand=True)
+
+        tab_view.add("Conta")
+        tab_view.add("Aparência")
+        tab_view.add("Sobre")
+        tab_view.tab("Conta").grid_columnconfigure(0, weight=1)
+        tab_view.tab("Aparência").grid_columnconfigure(0, weight=1)
+        
+        # Popular as abas
+        self._criar_aba_conta(tab_view.tab("Conta"))
+        self._criar_aba_aparencia(tab_view.tab("Aparência"))
+        self._criar_aba_sobre(tab_view.tab("Sobre"))
+
+    def _criar_aba_conta(self, tab):
+        """Cria os widgets para a aba de gerenciamento de conta."""
+        dados_usuario = self._carregar_dados_usuario()
+        
+        ctk.CTkLabel(tab, text="Informações do Usuário", font=self.medium_font).pack(fill="x", pady=(10, 15))
+
+        # Nome
+        ctk.CTkLabel(tab, text="Nome Completo:", font=self.small_font, anchor="w").pack(fill="x", padx=10)
+        nome_entry = ctk.CTkEntry(tab, height=35)
+        nome_entry.pack(fill="x", padx=10, pady=(0, 10))
+        
+        # Email
+        ctk.CTkLabel(tab, text="E-mail:", font=self.small_font, anchor="w").pack(fill="x", padx=10)
+        email_entry = ctk.CTkEntry(tab, height=35)
+        email_entry.pack(fill="x", padx=10, pady=(0, 20))
+
+        # --- LÓGICA DE CARREGAMENTO CORRIGIDA ---
+        dados_usuario = self._carregar_dados_usuario()
+        if dados_usuario:
+            nome_entry.insert(0, dados_usuario.get('nome', ''))
+            email_entry.insert(0, dados_usuario.get('email', ''))
+        else:
+            # Se não conseguir carregar, desativa os campos para evitar erros
+            nome_entry.insert(0, "Erro ao carregar dados.")
+            email_entry.insert(0, "Erro ao carregar dados.")
+            nome_entry.configure(state="disabled")
+            email_entry.configure(state="disabled")
+
+        # Alterar Senha
+        ctk.CTkLabel(tab, text="Alterar Senha", font=self.medium_font).pack(fill="x", pady=(10,15))
+        ctk.CTkLabel(tab, text="Senha Atual:", font=self.small_font, anchor="w").pack(fill="x", padx=10)
+        senha_atual_entry = ctk.CTkEntry(tab, height=35, show="*", placeholder_text="Sua senha atual (obrigatório para trocar)")
+        senha_atual_entry.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkLabel(tab, text="Nova Senha:", font=self.small_font, anchor="w").pack(fill="x", padx=10)
+        nova_senha_entry = ctk.CTkEntry(tab, height=35, show="*", placeholder_text="Mínimo 6 caracteres")
+        nova_senha_entry.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkLabel(tab, text="Confirmar Nova Senha:", font=self.small_font, anchor="w").pack(fill="x", padx=10)
+        conf_senha_entry = ctk.CTkEntry(tab, height=35, show="*", placeholder_text="Repita a nova senha")
+        conf_senha_entry.pack(fill="x", padx=10, pady=(0, 10))
+        
+        # Status e Botão Salvar
+        status_label = ctk.CTkLabel(tab, text="", font=self.small_light_font)
+        status_label.pack(fill="x", pady=(5,5))
+
+        btn_salvar = ctk.CTkButton(tab, text="Salvar Alterações", height=40, font=self.button_font,
+                                   command=lambda: self._salvar_alteracoes_conta(
+                                       nome_entry, email_entry, senha_atual_entry,
+                                       nova_senha_entry, conf_senha_entry, status_label
+                                   ))
+        btn_salvar.pack(fill="x", padx=10, pady=(10, 0))
+        if not dados_usuario:
+            btn_salvar.configure(state="disabled")
+
+    def _garantir_conexao_db(self):
+        """
+        Verifica se a conexão com o banco de dados está ativa.
+        Se não estiver, tenta se reconectar. Retorna True em sucesso, False em falha.
+        """
+        try:
+            # A conexão está ausente ou não está mais conectada?
+            if not self.db_connection or not self.db_connection.is_connected():
+                print("Log: Conexão com DB perdida ou inativa. Tentando reconectar...")
+                self.db_connection = conectar_mysql(
+                    host=self.db_host,
+                    database=self.db_name,
+                    user=self.db_usuario,
+                    password=self.db_senha
+                )
+                if not self.db_connection:
+                    print("Log: Falha CRÍTICA ao reconectar ao banco de dados.")
+                    return False
+                
+                print("Log: Reconexão com o DB bem-sucedida!")
+            return True # Retorna True se a conexão já estava boa ou se foi reconectada
+            
+        except Error as e:
+            print(f"Log: Ocorreu um erro ao verificar/reconectar ao DB: {e}")
+            return False
+
+    def _carregar_dados_usuario(self):
+        if not self._garantir_conexao_db():
+            return None
+        
+        try:
+            cursor = self.db_connection.cursor(dictionary=True)
+            cursor.execute("SELECT nome, email FROM usuarios WHERE id = %s", (self.user_id,))
+            resultado = cursor.fetchone()
+            cursor.close()
+            return resultado
+        except Error as e:
+            print(f"Log: Erro de MySQL ao buscar dados do usuário: {e}")
+            return None
+    
+    def _salvar_alteracoes_conta(self, nome_entry, email_entry, senha_atual_entry,
+                                nova_senha_entry, conf_senha_entry, status_label):
+        if not self._garantir_conexao_db():
+            status_label.configure(text="Erro de conexão com o banco.", text_color="red")
+            return
+        
+        status_label.configure(text="", text_color="green")
+        nome = nome_entry.get().strip()
+        email = email_entry.get().strip()
+        senha_atual = senha_atual_entry.get()
+        nova_senha = nova_senha_entry.get()
+        conf_senha = conf_senha_entry.get()
+        
+        if not nome or not email:
+            status_label.configure(text="Nome e e-mail não podem estar vazios.", text_color="red")
+            return
+            
+        if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+            status_label.configure(text="Formato de e-mail inválido.", text_color="red")
+            return
+
+        params = [nome, email]
+        query_parts = ["nome = %s", "email = %s"]
+        
+        if nova_senha:
+            if not senha_atual:
+                status_label.configure(text="Digite a senha atual para definir uma nova.", text_color="red")
+                return
+            if len(nova_senha) < 6:
+                status_label.configure(text="Nova senha deve ter no mínimo 6 caracteres.", text_color="red")
+                return
+            if nova_senha != conf_senha:
+                status_label.configure(text="As novas senhas não coincidem.", text_color="red")
+                return
+
+            try:
+                cursor = self.db_connection.cursor(dictionary=True)
+                cursor.execute("SELECT senha FROM usuarios WHERE id = %s", (self.user_id,))
+                user_data = cursor.fetchone()
+                cursor.close()
+                if not user_data or not check_password_hash(user_data['senha'], senha_atual):
+                    status_label.configure(text="Senha atual incorreta.", text_color="red")
+                    return
+                nova_senha_hash = generate_password_hash(nova_senha)
+                query_parts.append("senha = %s")
+                params.append(nova_senha_hash)
+
+            except Error as e:
+                status_label.configure(text=f"Erro de DB ao verificar senha: {e}", text_color="red")
+                return
+
+        try:
+            params.append(self.user_id)
+            query = f"UPDATE usuarios SET {', '.join(query_parts)} WHERE id = %s"
+            
+            cursor = self.db_connection.cursor()
+            cursor.execute(query, tuple(params))
+            self.db_connection.commit()
+            cursor.close()
+            
+            status_label.configure(text="Dados atualizados com sucesso!", text_color="green")
+            
+            self.user_first_name = nome.split(' ')[0]
+            self.session_manager.save_session(self.user_id, self.user_first_name)
+            self._atualizar_estado_login()
+            
+            senha_atual_entry.delete(0, 'end')
+            nova_senha_entry.delete(0, 'end')
+            conf_senha_entry.delete(0, 'end')
+        
+        except IntegrityError as e:
+            self.db_connection.rollback()
+            if e.errno == 1062:
+                status_label.configure(text="Este e-mail já está em uso.", text_color="red")
+            else:
+                status_label.configure(text=f"Erro: {e}", text_color="red")
+        
+        except Error as e:
+            self.db_connection.rollback()
+            status_label.configure(text=f"Erro no banco de dados: {e}", text_color="red")
+
+    def _criar_aba_aparencia(self, tab):
+        ctk.CTkLabel(tab, text="Tema do Aplicativo", font=self.medium_font).pack(pady=(20, 10))
+
+        segmented_button = ctk.CTkSegmentedButton(
+            master=tab,
+            values=["Light", "Dark", "System"],
+            font=self.tab_font,
+            # --- ALTERADO: Usando um método de callback dedicado e mais estável ---
+            command=self._change_appearance_mode_event
+        )
+        
+        # Garante que o botão mostre o tema atual ao abrir a janela
+        segmented_button.set(ctk.get_appearance_mode().capitalize())
+        segmented_button.pack(pady=10, padx=10, fill="x")
+
+        ctk.CTkLabel(
+            master=tab,
+            text="A mudança de tema será aplicada a todo o aplicativo.",
+            font=self.small_light_font,
+            wraplength=300
+        ).pack(pady=(15, 0), padx=10)
+
+    def _change_appearance_mode_event(self, new_appearance_mode: str):
+        ctk.set_appearance_mode(new_appearance_mode.lower())
+
+    def _criar_aba_sobre(self, tab):
+        tab.grid_rowconfigure(0, weight=1)
+        tab.grid_columnconfigure(0, weight=1)
+
+        frame_sobre = ctk.CTkFrame(tab, fg_color="transparent")
+        frame_sobre.grid(row=0, column=0)
+        
+        ctk.CTkLabel(frame_sobre, text="MyGeli", font=self.large_font).pack(pady=(20, 5))
+        ctk.CTkLabel(frame_sobre, text="Versão 1.0.0", font=self.small_font).pack(pady=(0, 20))
+        ctk.CTkLabel(frame_sobre, text="Seu assistente culinário inteligente.", font=self.small_font, wraplength=300).pack(pady=5)
+        ctk.CTkLabel(frame_sobre, text="Desenvolvido para otimizar sua cozinha.", font=self.small_light_font, wraplength=300).pack(pady=(0,20))
+        ctk.CTkLabel(frame_sobre, text="Contato:", font=self.small_font).pack(pady=(20, 5))
+        ctk.CTkLabel(frame_sobre, text="foodyzeof@gmail.com", font=self.small_light_font).pack()
 
     def _abrir_tela_login(self):
         # --- VERSÃO CORRIGIDA (altura da janela e pady) ---
@@ -344,11 +679,8 @@ class App(ctk.CTk):
             cursor.execute(query, (email,))
             user = cursor.fetchone()
             cursor.close()
-            if not user:
-                error_label.configure(text="E-mail incorreto! Tente novamente.")
-                return
-            if not check_password_hash(user['senha'], senha):
-                error_label.configure(text="Senha incorreta! Tente novamente.")
+            if not user or not check_password_hash(user['senha'], senha):
+                error_label.configure(text="E-mail ou senha incorretos! Tente novamente.")
                 return
             self.user_id = user['id']
             full_name = user['nome']
@@ -361,26 +693,19 @@ class App(ctk.CTk):
             print(f"Log: Erro de MySQL em _executar_login: {e}")
 
     def _atualizar_estado_login(self):
-        # (Função idêntica, sem mudanças)
         if self.user_id and self.user_first_name:
             print(f"Log: Usuário {self.user_id} ({self.user_first_name}) está logado.")
             self.user_name_label.configure(text=f"Olá, {self.user_first_name}!")
             self.user_name_label.pack(side="left", padx=(0, 10), pady=10)
-            self.btn_geli.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
-            self.btn_receitas.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
-            self.btn_estoque.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
-            self.btn_compras.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
+            for btn in [self.btn_geli, self.btn_receitas, self.btn_estoque, self.btn_compras]:
+                btn.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR, state="normal")
         else:
             print("Log: Nenhum usuário logado.")
-            self.user_name_label.configure(text="")
             self.user_name_label.pack_forget()
-            self.btn_geli.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
-            self.btn_receitas.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
-            self.btn_estoque.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
-            self.btn_compras.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
+            for btn in [self.btn_geli, self.btn_receitas, self.btn_estoque, self.btn_compras]:
+                btn.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR, state="disabled")
 
     def _abrir_tela_cadastro(self):
-        # (Função idêntica, sem mudanças)
         if hasattr(self, 'login_window') and self.login_window.winfo_exists():
             self.login_window.withdraw()
         if hasattr(self, 'register_window') and self.register_window.winfo_exists():
@@ -749,9 +1074,7 @@ class App(ctk.CTk):
         ctk.CTkButton(self.termos_window, text="Fechar", width=100,
                       command=self.termos_window.destroy).pack(pady=10)
 
-# --- Execução da Aplicação ---
 if __name__ == "__main__":
-    # Credenciais e conexão
     db_host = "localhost"
     db_name = "mygeli"
     db_usuario = "foodyzeadm"
@@ -759,10 +1082,13 @@ if __name__ == "__main__":
     
     conexao_ativa = conectar_mysql(db_host, db_name, db_usuario, db_senha)
 
-    app = App(db_connection=conexao_ativa)
+    app = App(db_connection=conexao_ativa, 
+              db_host=db_host, 
+              db_name=db_name, 
+              db_usuario=db_usuario, 
+              db_senha=db_senha)
+    
     app.mainloop()
-
-    # Fecha a conexão ao sair da aplicação
-    if conexao_ativa and conexao_ativa.is_connected():
-        conexao_ativa.close()
+    if hasattr(app, 'db_connection') and app.db_connection and app.db_connection.is_connected():
+        app.db_connection.close()
         print("Log: Conexão com o BD fechada ao finalizar o app.")
