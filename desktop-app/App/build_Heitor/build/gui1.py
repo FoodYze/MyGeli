@@ -52,6 +52,9 @@ class App(ctk.CTk):
     CARD_COLOR = "#FFFFFF"
     CARD_BORDER_COLOR = "#E0E0E0"
     BUTTON_DISABLED_COLOR = "#B0B0B0" # Um tom de cinza
+    # --- ADICIONADO: Cor para botão de exclusão ---
+    BUTTON_DANGER_COLOR = "#D32F2F" # Vermelho
+    BUTTON_DANGER_HOVER_COLOR = "#B71C1C" # Vermelho escuro
 
     def __init__(self, db_connection):
         super().__init__()
@@ -63,7 +66,6 @@ class App(ctk.CTk):
         self.session_manager = SessionManager()
         session_data = self.session_manager.get_session()
         
-        # --- VERSÃO CORRIGIDA ---
         self.user_id = session_data.get("user_id")
         self.user_first_name = session_data.get("first_name")
 
@@ -109,10 +111,7 @@ class App(ctk.CTk):
         user_icon_image = ctk.CTkImage(Image.open(assets_path / "user_icon.png").resize((32, 32), Image.LANCZOS), size=(40, 40))
         user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._acao_usuario)
         user_button.pack(side="left", padx=10, pady=10)
-        
-        # O label é criado aqui (usando a fonte correta)
         self.user_name_label = ctk.CTkLabel(header_frame, text="", font=self.header_name_font, text_color=self.BUTTON_TEXT_COLOR)
-        
         options_image = ctk.CTkImage(Image.open(assets_path / "options.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
         options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
         options_button.pack(side="right", padx=5, pady=5)
@@ -155,43 +154,160 @@ class App(ctk.CTk):
         else:
             messagebox.showwarning("Acesso Restrito", 
                                    "Entre em uma conta para utilizar a ferramenta!")
-        
+    
+    # --- MODIFICADO: Esta função agora abre a janela de OPÇÕES ---
     def _acao_usuario(self):
-        # --- VERSÃO CORRIGIDA (com nome) ---
         """
         Verifica se o usuário está logado.
-        Se sim, oferece logout. Se não, abre a tela de login.
+        Se sim, abre a janela de opções. Se não, abre a tela de login.
         """
         if self.user_id:
-            # Mensagem de logout melhorada
-            resposta = messagebox.askyesno("Logout", f"Logado como {self.user_first_name}.\nDeseja sair?")
-            if resposta: # "Sim"
-                self.session_manager.clear_session()
-                self.user_id = None
-                self.user_first_name = None
-                self._atualizar_estado_login()
+            # --- ABRE A NOVA JANELA DE OPÇÕES ---
+            if hasattr(self, 'opcoes_window') and self.opcoes_window.winfo_exists():
+                self.opcoes_window.focus()
+                return
+
+            self.opcoes_window = ctk.CTkToplevel(self)
+            self.opcoes_window.title("Opções da Conta")
+            self.opcoes_window.geometry("300x200") # Tamanho da nova janela
+            self.opcoes_window.transient(self)
+            self.opcoes_window.grab_set()
+            self.opcoes_window.resizable(False, False)
+            
+            # Centralizar
+            x_app = self.winfo_x()
+            y_app = self.winfo_y()
+            w_app = self.winfo_width()
+            h_app = self.winfo_height()
+            x_opcoes = x_app + (w_app // 2) - (300 // 2)
+            y_opcoes = y_app + (h_app // 2) - (200 // 2)
+            self.opcoes_window.geometry(f"300x200+{x_opcoes}+{y_opcoes}")
+
+            ctk.CTkLabel(self.opcoes_window, text=f"Opções para {self.user_first_name}", font=self.medium_font).pack(pady=(20, 15))
+
+            # Botão Sair
+            btn_sair = ctk.CTkButton(self.opcoes_window, text="Sair da Conta",
+                                     command=self._confirmar_logout, 
+                                     font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
+            btn_sair.pack(pady=10, padx=20, fill="x")
+
+            # Botão Excluir
+            btn_excluir = ctk.CTkButton(self.opcoes_window, text="Excluir Conta",
+                                        command=self._confirmar_exclusao, 
+                                        font=self.button_font, fg_color=self.BUTTON_DANGER_COLOR, hover_color=self.BUTTON_DANGER_HOVER_COLOR) # Cor de perigo
+            btn_excluir.pack(pady=10, padx=20, fill="x")
+            
         else:
             # Usuário não está logado, abrir tela de login
             self._abrir_tela_login()
 
+    # --- ADICIONADO: Funções de Logout e Exclusão ---
+
+    def _confirmar_logout(self):
+        """Pede confirmação para sair."""
+        # Tira o foco da janela de opções para o messagebox aparecer na frente
+        self.opcoes_window.grab_release() 
+        resposta = messagebox.askyesno("Sair", "Tem certeza que deseja sair da sua conta?", parent=self.opcoes_window)
+        if resposta: # "Sim"
+            self._executar_logout()
+        else:
+            # Devolve o foco para a janela de opções
+            self.opcoes_window.grab_set() 
+            self.opcoes_window.focus()
+
+    def _executar_logout(self):
+        """Limpa a sessão e atualiza a GUI."""
+        if hasattr(self, 'opcoes_window') and self.opcoes_window.winfo_exists():
+            self.opcoes_window.destroy()
+            
+        self.session_manager.clear_session()
+        self.user_id = None
+        self.user_first_name = None
+        self._atualizar_estado_login()
+
+    def _confirmar_exclusao(self):
+        """Pede a confirmação final antes de excluir a conta."""
+        self.opcoes_window.grab_release()
+        resposta = messagebox.askyesno("EXCLUIR CONTA", 
+                                       f"ATENÇÃO, {self.user_first_name}!\n\nVocê tem CERTEZA?\n\nEsta ação é IRREVERSÍVEL e apagará TODOS os seus dados (estoque, receitas, etc.) permanentemente.", 
+                                       icon="warning", parent=self.opcoes_window)
+        if resposta:
+            self._executar_exclusao_conta()
+        else:
+            self.opcoes_window.grab_set()
+            self.opcoes_window.focus()
+            
+    def _executar_exclusao_conta(self):
+        """Executa os comandos SQL para apagar todos os dados do usuário."""
+        if not self.user_id:
+            messagebox.showerror("Erro de Sessão", "Sessão não encontrada. Não é possível excluir a conta.", parent=self)
+            return
+
+        if not self.db_connection or not self.db_connection.is_connected():
+            messagebox.showerror("Erro de Conexão", "Erro de conexão com o banco. Tente novamente.", parent=self)
+            self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+            if not self.db_connection: return
+
+        cursor = None # Define o cursor como None fora do try
+        try:
+            print(f"Log: EXCLUINDO todos os dados do usuário {self.user_id}...")
+            cursor = self.db_connection.cursor()
+            
+            # 1. Excluir dados dependentes (FK)
+            # (Adicione outras tabelas aqui se elas dependerem do user_id)
+            cursor.execute("DELETE FROM produtos WHERE user_id = %s", (self.user_id,))
+            print(f"Log: {cursor.rowcount} produtos excluídos.")
+            
+            cursor.execute("DELETE FROM receitas WHERE idusuario = %s", (self.user_id,))
+            print(f"Log: {cursor.rowcount} receitas excluídas.")
+            
+            cursor.execute("DELETE FROM login_tokens WHERE user_id = %s", (self.user_id,))
+            print(f"Log: {cursor.rowcount} tokens de login excluídos.")
+
+            # 2. Finalmente, excluir o usuário
+            cursor.execute("DELETE FROM usuarios WHERE id = %s", (self.user_id,))
+            print(f"Log: {cursor.rowcount} usuário excluído.")
+
+            self.db_connection.commit()
+            
+            messagebox.showinfo("Conta Excluída", "Sua conta foi excluída permanentemente.")
+            
+            # Faz o logout para limpar a UI
+            self._executar_logout()
+
+        except Error as e:
+            self.db_connection.rollback()
+            messagebox.showerror("Erro no Banco de Dados", f"Não foi possível excluir sua conta:\n{e}", parent=self)
+            print(f"Log: Erro de MySQL ao excluir conta: {e}")
+        finally:
+            # --- CORREÇÃO DO ERRO ---
+            # Apenas fechamos o cursor se ele foi criado com sucesso
+            if cursor:
+                cursor.close()
+    
+    # --- FIM DAS NOVAS FUNÇÕES ---
+
     def _abrir_tela_login(self):
-        # --- VERSÃO CORRIGIDA (fonte do link) ---
+        # --- VERSÃO CORRIGIDA (altura da janela e pady) ---
         if hasattr(self, 'login_window') and self.login_window.winfo_exists():
             self.login_window.focus()
             return
+            
         self.login_window = ctk.CTkToplevel(self)
         self.login_window.title("Login MyGeli")
-        self.login_window.geometry("350x300")
+        self.login_window.geometry("350x350") # <-- CORRIGIDO
         self.login_window.transient(self)
         self.login_window.grab_set()
         self.login_window.resizable(False, False)
+        
         x_app = self.winfo_x()
         y_app = self.winfo_y()
         w_app = self.winfo_width()
         h_app = self.winfo_height()
         x_login = x_app + (w_app // 2) - (350 // 2)
-        y_login = y_app + (h_app // 2) - (300 // 2)
-        self.login_window.geometry(f"350x300+{x_login}+{y_login}")
+        y_login = y_app + (h_app // 2) - (350 // 2) # <-- CORRIGIDO
+        self.login_window.geometry(f"350x350+{x_login}+{y_login}") # <-- CORRIGIDO
+        
         ctk.CTkLabel(self.login_window, text="Login", font=self.large_font).pack(pady=(20, 10))
         ctk.CTkLabel(self.login_window, text="E-mail:", font=self.small_font, anchor="w").pack(fill="x", padx=40)
         email_entry = ctk.CTkEntry(self.login_window, width=270, height=35)
@@ -201,12 +317,14 @@ class App(ctk.CTk):
         senha_entry.pack(pady=(0, 10))
         error_label = ctk.CTkLabel(self.login_window, text="", text_color="red", font=self.small_font)
         error_label.pack()
+        
         ctk.CTkButton(self.login_window, text="Entrar", width=270, height=40, font=self.button_font,
                       command=lambda: self._executar_login(email_entry, senha_entry, error_label)
-                      ).pack(pady=10)
+                      ).pack(pady=(10, 5)) # <-- CORRIGIDO
+                      
         link_cadastro = ctk.CTkLabel(self.login_window, text="Não tem uma conta? Crie uma.", text_color="#0066CC",
-                                       font=self.link_font, cursor="hand2") # Usa a fonte correta
-        link_cadastro.pack()
+                                       font=self.link_font, cursor="hand2")
+        link_cadastro.pack(pady=(5, 10)) # <-- CORRIGIDO
         link_cadastro.bind("<Button-1>", lambda e: self._abrir_tela_cadastro())
 
     def _executar_login(self, email_entry, senha_entry, error_label):
@@ -262,7 +380,7 @@ class App(ctk.CTk):
             self.btn_compras.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
 
     def _abrir_tela_cadastro(self):
-        # --- VERSÃO CORRIGIDA (fontes) ---
+        # (Função idêntica, sem mudanças)
         if hasattr(self, 'login_window') and self.login_window.winfo_exists():
             self.login_window.withdraw()
         if hasattr(self, 'register_window') and self.register_window.winfo_exists():
@@ -306,10 +424,10 @@ class App(ctk.CTk):
         termos_frame = ctk.CTkFrame(self.register_window, fg_color="transparent")
         termos_frame.pack(pady=10)
         termos_check = ctk.CTkCheckBox(termos_frame, text="Li e concordo com os ", variable=self.var_termos,
-                                       font=self.small_light_font, command=self._validar_campos_cadastro) # Fonte correta
+                                       font=self.small_light_font, command=self._validar_campos_cadastro)
         termos_check.pack(side="left")
         termos_link = ctk.CTkLabel(termos_frame, text="Termos de Uso", text_color="#0066CC",
-                                     font=self.link_font, cursor="hand2") # Fonte correta
+                                     font=self.link_font, cursor="hand2")
         termos_link.pack(side="left")
         termos_link.bind("<Button-1>", lambda e: self._abrir_janela_termos())
         self.btn_cadastrar = ctk.CTkButton(self.register_window, text="Cadastrar", width=300, height=40,
@@ -322,20 +440,17 @@ class App(ctk.CTk):
         self.var_email.trace_add("write", self._validar_campos_cadastro)
         self.var_senha.trace_add("write", self._validar_campos_cadastro)
         self.var_conf_senha.trace_add("write", self._validar_campos_cadastro)
-        # --- VERSÃO CORRIGIDA (lambda) ---
+        
         self.register_window.protocol("WM_DELETE_WINDOW", lambda: self._fechar_tela_cadastro(close_login=False))
 
     def _fechar_tela_cadastro(self, close_login=False):
-        # --- VERSÃO CORRIGIDA (parâmetro e docstring) ---
-        """Fecha a janela de cadastro e, opcionalmente, a de login."""
+        # (Função idêntica, sem mudanças)
         if hasattr(self, 'register_window') and self.register_window.winfo_exists():
             self.register_window.destroy()
-        
         if close_login:
             if hasattr(self, 'login_window') and self.login_window.winfo_exists():
                 self.login_window.destroy()
         else:
-            # Re-exibe a janela de login
             if hasattr(self, 'login_window') and not self.login_window.winfo_exists():
                 self.login_window.deiconify()
             elif hasattr(self, 'login_window'):
@@ -394,27 +509,38 @@ class App(ctk.CTk):
             print(f"Log: Erro de MySQL em _executar_cadastro: {e}")
 
     def _abrir_janela_termos(self):
-        # --- VERSÃO CORRIGIDA (fontes) ---
+        # (Função idêntica, sem mudanças)
         if hasattr(self, 'termos_window') and self.termos_window.winfo_exists():
             self.termos_window.focus()
             return
         self.termos_window = ctk.CTkToplevel(self)
         self.termos_window.title("Termos de Uso e Política de Privacidade")
         self.termos_window.geometry("700x500")
-        self.termos_window.transient(self.register_window)
+        
+        # Pega a posição da janela de registro para centralizar em relação a ELA
+        # (Verifica se a register_window existe antes de tentar ler sua posição)
+        if hasattr(self, 'register_window') and self.register_window.winfo_exists():
+             self.termos_window.transient(self.register_window)
+             x_reg = self.register_window.winfo_x()
+             y_reg = self.register_window.winfo_y()
+             w_reg = self.register_window.winfo_width()
+             h_reg = self.register_window.winfo_height()
+             x_termos = x_reg + (w_reg // 2) - (700 // 2)
+             y_termos = y_reg + (h_reg // 2) - (500 // 2)
+             self.termos_window.geometry(f"700x500+{x_termos}+{y_termos}")
+        else:
+            # Fallback se a janela de registro não existir (centraliza na tela)
+            screen_width = self.winfo_screenwidth()
+            screen_height = self.winfo_screenheight()
+            center_x = int(screen_width / 2 - 700 / 2)
+            center_y = int(screen_height / 2 - 500 / 2)
+            self.termos_window.geometry(f"700x500+{center_x}+{center_y}")
+
         self.termos_window.grab_set()
         self.termos_window.resizable(True, True)
-        x_reg = self.register_window.winfo_x()
-        y_reg = self.register_window.winfo_y()
-        w_reg = self.register_window.winfo_width()
-        h_reg = self.register_window.winfo_height()
-        x_termos = x_reg + (w_reg // 2) - (700 // 2)
-        y_termos = y_reg + (h_reg // 2) - (500 // 2)
-        self.termos_window.geometry(f"700x500+{x_termos}+{y_termos}")
         
-        textbox = ctk.CTkTextbox(self.termos_window, wrap="word", font=self.small_light_font, spacing2=5) # Fonte correta
+        textbox = ctk.CTkTextbox(self.termos_window, wrap="word", font=self.small_light_font, spacing2=5)
         textbox.pack(fill="both", expand=True, padx=20, pady=(20, 10))
-        
         textbox.tag_config("h1", font=ctk.CTkFont("Poppins Bold", 18), spacing1=(15, 5))
         textbox.tag_config("b", font=ctk.CTkFont("Poppins SemiBold", 12))
         textbox.tag_config("i", font=ctk.CTkFont("Poppins Light Italic", 12))

@@ -13,6 +13,8 @@ from tkinter import messagebox
 import threading
 from dotenv import load_dotenv
 
+from session_manager import SessionManager
+
 load_dotenv()
 
 def conectar_mysql(host, database, user, password):
@@ -51,7 +53,7 @@ UP_ARROW_IMAGE_PATH = OUTPUT_PATH / "up_arrow.png"
 DOWN_ARROW_IMAGE_PATH = OUTPUT_PATH / "down_arrow.png"
 DEFAULT_ITEM_IMAGE_PATH = OUTPUT_PATH / "default.png"
 
-def buscar_estoque_do_bd(conexao):
+def buscar_estoque_do_bd(conexao, user_id):
     """
     Busca os produtos no BD e retorna uma lista de dicionários.
     Ex: [{'nome': 'Leite', 'quantidade': 2, 'unidade': 'Litros'},...]
@@ -59,11 +61,16 @@ def buscar_estoque_do_bd(conexao):
     if not conexao or not conexao.is_connected():
         print("Log: Conexão com BD indisponível para buscar estoque.")
         return []
+    
+    if not user_id:
+        print("Log: user_id nulo. Nenhum estoque será buscado.")
+        return []
 
     try:
         # Usar dictionary=True é útil, mas vamos montar manualmente para ter as chaves que queremos
         cursor = conexao.cursor()
-        cursor.execute("SELECT nome_produto, quantidade_produto, tipo_volume FROM produtos")
+        query = ("SELECT nome_produto, quantidade_produto, tipo_volume FROM produtos WHERE user_id = %s")
+        cursor.execute(query, (user_id,))
         produtos_bd = cursor.fetchall()
         cursor.close()
 
@@ -75,7 +82,7 @@ def buscar_estoque_do_bd(conexao):
                 "unidade": produto[2]
             })
 
-        print(f"DEBUG: Estoque encontrado no BD: {len(lista_estoque)} itens.")
+        print(f"DEBUG: Estoque encontrado no BD: {len(lista_estoque)} itens para user_id: {user_id}.")
         return lista_estoque
 
     except Error as e:
@@ -96,17 +103,22 @@ def formatar_estoque_para_ia(lista_estoque):
 
     return header + "\n".join(items_str_list)
 
-def buscar_titulos_receitas(conexao):
+def buscar_titulos_receitas(conexao, user_id):
     """Busca os títulos de todas as receitas no BD."""
     if not conexao or not conexao.is_connected():
         print("Log: Conexão com BD indisponível para buscar títulos de receitas.")
         return []
+    
+    if not user_id:
+        print("Log: user_id nulo. Nenhuma receita será buscada.")
+        return []
+    
     try:
         cursor = conexao.cursor()
-        cursor.execute("SELECT tituloreceita FROM receitas")
+        cursor.execute("SELECT tituloreceita FROM receitas WHERE idusuario = %s", (user_id,))
         titulos = [item[0] for item in cursor.fetchall()]
         cursor.close()
-        print(f"DEBUG: Encontrados {len(titulos)} títulos de receitas no BD.")
+        print(f"DEBUG: Encontrados {len(titulos)} títulos de receitas no BD para user_id {user_id}.")
         return titulos
     except Error as e:
         print(f"Erro ao buscar títulos de receitas do banco de dados: {e}")
@@ -281,6 +293,16 @@ class App(ctk.CTk):
         super().__init__()
         self.conexao = conexao_bd
         self.last_recipe_for_update = None
+        
+        self.session_manager = SessionManager()
+        session_data = self.session_manager.get_session()
+        self.user_id = session_data.get("user_id")
+        self.user_first_name = session_data.get("first_name")
+        
+        if not self.user_id:
+            messagebox.showerror("Erro de Sessão", "Nenhum usuário logado. Por favor, feche esta janela e faça o login na tela principal.")
+            self.after(100, self.destroy) 
+            return
 
         window_width = 400
         window_height = 650
@@ -304,6 +326,15 @@ class App(ctk.CTk):
         self.header = ctk.CTkFrame(self, height=50, corner_radius=0, fg_color="#007AFF")
         self.header.grid(row=0, column=0, sticky="nsew")
         self.header.grid_propagate(False)
+        
+        self.back_btn = ctk.CTkButton(self.header, text="←", width=35, height=35,
+                                      fg_color="transparent", hover_color="#0066CC",
+                                      font=("Helvetica", 22, "bold"), text_color="white", command=self.voltar)
+        self.back_btn.pack(side="left", padx=(10,5), pady=7.5)
+
+        self.title_label = ctk.CTkLabel(self.header, text=f"Geli (Olá, {self.user_first_name}!)",
+                                        font=("Helvetica", 20, "bold"), text_color="white")
+        self.title_label.pack(side="left", padx=(5,0), pady=10)
 
         self.back_btn = ctk.CTkButton(self.header, text="←", width=35, height=35,
                                       fg_color="transparent", hover_color="#0066CC",
@@ -368,6 +399,10 @@ class App(ctk.CTk):
         if not self.conexao or not self.conexao.is_connected():
             print("AVISO: Sincronização de receitas locais cancelada (sem conexão com BD).")
             return
+        
+        if not self.user_id:
+            print("AVISO: Sincronização cancelada (ID de usuário não encontrado).")
+            return
 
         if not SAVED_RECIPES_DIR.exists():
             print(f"INFO: Pasta de receitas '{SAVED_RECIPES_DIR}' não encontrada. Nada a sincronizar.")
@@ -378,14 +413,14 @@ class App(ctk.CTk):
         try:
             # 1. Pega os títulos de todas as receitas que já estão no banco para evitar duplicatas
             cursor = self.conexao.cursor()
-            cursor.execute("SELECT tituloreceita FROM receitas")
-            # Usa um set para uma verificação de existência muito mais rápida
+            
+            cursor.execute("SELECT tituloreceita FROM receitas WHERE idusuario = %s", (self.user_id,))
             receitas_no_banco = {row[0] for row in cursor.fetchall()}
             
-            # 2. Itera sobre os arquivos .txt na pasta local
             arquivos_receitas = [f for f in os.listdir(SAVED_RECIPES_DIR) if f.endswith('.txt')]
             
-            id_usuario_padrao = 1 # Usuário padrão para associar a receita
+            # --- MODIFICADO: Usa o self.user_id da sessão ---
+            id_usuario_para_inserir = self.user_id
             
             for nome_arquivo in arquivos_receitas:
                 try:
@@ -405,9 +440,9 @@ class App(ctk.CTk):
                             INSERT INTO receitas (tituloreceita, descreceita, idusuario)
                             VALUES (%s, %s, %s)
                             """
-                            dados_receita = (titulo, descricao, id_usuario_padrao)
+                            dados_receita = (titulo, descricao, id_usuario_para_inserir)
                             cursor.execute(sql_insert_query, dados_receita)
-                            print(f"  - SINCRONIZADO: Receita '{titulo}' salva no banco.")
+                            print(f"  - SINCRONIZADO: Receita '{titulo}' salva no banco para user_id: {id_usuario_para_inserir}.")
                             receitas_salvas_agora += 1
                 except Exception as e:
                     print(f"  - ERRO: Falha ao processar o arquivo '{nome_arquivo}' para sincronização: {e}")
@@ -524,9 +559,9 @@ class App(ctk.CTk):
 
 
     def processar_resposta_bot(self, user_message):
-        lista_estoque = buscar_estoque_do_bd(self.conexao)
+        lista_estoque = buscar_estoque_do_bd(self.conexao, self.user_id)
         estoque_formatado_para_ia = formatar_estoque_para_ia(lista_estoque)
-        lista_titulos_receitas = buscar_titulos_receitas(self.conexao)
+        lista_titulos_receitas = buscar_titulos_receitas(self.conexao, self.user_id)
         receitas_formatado_para_ia = formatar_receitas_para_ia(lista_titulos_receitas)
         mensagem_completa_para_ia = f"{user_message}{estoque_formatado_para_ia}{receitas_formatado_para_ia}"
         resposta_bot = self.gerar_resposta_api(mensagem_completa_para_ia)
@@ -603,22 +638,26 @@ class App(ctk.CTk):
             print("ERRO: Sem conexão com o BD para salvar a receita.")
             self.add_message("Alerta: Não foi possível salvar a receita no banco de dados (sem conexão).", "bot_error")
             return
+        
+        if not self.user_id:
+            print("ERRO: user_id não encontrado. Não é possível salvar a receita no BD.")
+            self.add_message("Alerta: Não foi possível salvar a receita (sessão de usuário não encontrada).", "bot_error")
+            return
 
         try:
             cursor = self.conexao.cursor()
-            # ID do usuário ao qual a receita será associada.
-            # No seu banco, o usuário com ID 1 é 'Marvin'.
-            id_usuario_padrao = 1
+
+            id_usuario_para_inserir = self.user_id
 
             sql_insert_query = """
             INSERT INTO receitas (tituloreceita, descreceita, idusuario)
             VALUES (%s, %s, %s)
             """
-            dados_receita = (titulo, descricao, id_usuario_padrao)
+            dados_receita = (titulo, descricao, id_usuario_para_inserir)
 
             cursor.execute(sql_insert_query, dados_receita)
             self.conexao.commit()
-            print(f"SUCESSO: Receita '{titulo}' salva no banco de dados.")
+            print(f"SUCESSO: Receita '{titulo}' salva no banco de dados para user_id: {id_usuario_para_inserir}.")
 
         except Error as e:
             print(f"ERRO de Banco de Dados ao salvar receita: {e}")
@@ -670,6 +709,12 @@ class App(ctk.CTk):
             print("ERRO CRÍTICO: Sem conexão com o BD para atualizar estoque.")
             self.add_message("Não consegui me conectar ao banco de dados para atualizar o estoque.", "bot_error")
             return
+        
+        if not self.user_id:
+            print("ERRO: user_id não encontrado. Não é possível atualizar o estoque.")
+            self.add_message("Alerta: Não foi possível atualizar o estoque (sessão de usuário não encontrada).", "bot_error")
+            return
+        
         recipe_title = self.last_recipe_for_update.get("titulo", "Receita não identificada")
         ingredients_to_update = self.last_recipe_for_update["ingredientes"]
 
@@ -682,14 +727,26 @@ class App(ctk.CTk):
                 sql_update_stock = """
                     UPDATE produtos 
                     SET quantidade_produto = quantidade_produto - %s 
-                    WHERE LOWER(nome_produto) = LOWER(%s) AND quantidade_produto >= %s
+                    WHERE LOWER(nome_produto) = LOWER(%s) AND user_id = %s AND quantidade_produto >= %s
                 """
-                cursor.execute(sql_update_stock, (quantidade_a_remover, nome, quantidade_a_remover))
+                cursor.execute(sql_update_stock, (quantidade_a_remover, nome, self.user_id, quantidade_a_remover))
                 sql_insert_history = """
                     INSERT INTO historico_uso (nome_receita, nome_ingrediente, quantidade_usada, unidade_medida)
                     VALUES (%s, %s, %s, %s)
                 """
                 cursor.execute(sql_insert_history, (recipe_title, nome, quantidade_a_remover, unidade))
+                
+            # --- 3. ADIÇÃO: COMANDO DELETE (Limpa itens zerados) ---
+            # Após o loop, e antes de 'commitar', adicionamos este comando.
+            print(f"Log: Verificando estoque de user_id {self.user_id} por itens zerados...")
+            sql_delete_zeros = """
+            DELETE FROM produtos 
+            WHERE user_id = %s AND quantidade_produto <= 0
+            """
+            cursor.execute(sql_delete_zeros, (self.user_id,))
+            print(f"Log: Limpeza de itens zerados concluída. {cursor.rowcount} linha(s) removida(s).")
+            # --- FIM DA ADIÇÃO ---
+                
             self.conexao.commit()
             cursor.close()
             print(f"SUCESSO: Estoque e histórico atualizados no BD para {len(ingredients_to_update)} itens.")
@@ -742,6 +799,13 @@ if __name__ == "__main__":
         alert_root.mainloop()
     else:
         conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
-        app = App(conexao_bd=conexao)
-        app.mainloop()
-
+        if conexao:
+            app = App(conexao_bd=conexao)
+            app.mainloop()
+            # Fecha a conexão quando o app fechar
+            if conexao.is_connected():
+                conexao.close()
+                print("Log: Conexão com o BD fechada ao finalizar o app.")
+        else:
+            print("CRÍTICO: A aplicação não pode ser iniciada pois a conexão com o banco de dados falhou na inicialização.")
+            # O messagebox de erro já foi mostrado dentro de conectar_mysql()
