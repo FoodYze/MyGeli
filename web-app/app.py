@@ -19,14 +19,13 @@ DB_CONFIG = {
 }
 REMEMBER_DAYS = 30
 
-# --- CORREÇÃO 1: Inicialização do Flask ---
-# Supondo que app.py está na raiz da pasta web-app e 'templates' está nela
+# --- Inicialização do Flask ---
 app = Flask(__name__, template_folder='templates', static_folder='static') 
 # Define explicitamente as pastas
 
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 
-# --- Serviços (UserDBService continua o mesmo) ---
+# --- Serviços ---
 class UserDBService:
     def __init__(self, db_config):
         self.db_config = db_config
@@ -55,7 +54,7 @@ class UserDBService:
         cnx = self.get_db_connection()
         cursor = cnx.cursor()
         try:
-            # Remove tokens antigos do mesmo usuário para evitar acúmulo (opcional, mas bom)
+            # Remove tokens antigos do mesmo usuário para evitar acúmulo
             cursor.execute("DELETE FROM login_tokens WHERE user_id = %s", (user_id,))
             
             cursor.execute(
@@ -134,9 +133,8 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'GET':
-        return render_template('register-page.html') # Caminho correto
+        return render_template('register-page.html')
 
-    # ... (lógica do POST continua a mesma) ...
     try:
         nome = request.form.get('nome', '').strip()
         telefone = request.form.get('telefone', '').strip()
@@ -186,25 +184,93 @@ def register():
             response.set_cookie('remember_me', cookie_value, expires=cookie_expires, path='/', httponly=True, secure=False, samesite='Lax')
         return response
 
-    # --- CORREÇÃO 2: Caminhos nos Erros ---
+    # --- Caminhos nos Erros ---
     except ValueError as ve:
         return render_template('register-page.html', error=str(ve)), 400 # Caminho correto
     except RuntimeError as re:
         return render_template('register-page.html', error=str(re)), 500 # Caminho correto
     except Exception as e:
-        # É bom logar o erro 'e' aqui para depuração
         print(f"Erro inesperado no registro: {e}") 
         return render_template('register-page.html', error="Erro inesperado. Tente novamente."), 500 # Caminho correto
 
 
-# --- CORREÇÃO 3: Renderizar Template na Página Geral ---
-@app.route('/general-page') # Rota mais simples
+# --- Renderizar Template na Página Geral ---
+@app.route('/general-page')
 def general_page():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    # Aqui você pode buscar dados do usuário se precisar e passar para o template
-    # user_data = buscar_dados_usuario(session['user_id']) 
-    return render_template('general-page.html') # Renderiza o HTML
+
+    user_id = session['user_id']
+    dashboard_data = {
+        "total_items": 0,
+        "low_stock_count": 0,
+        "total_recipes": 0,
+        "highest_stock_item": "Nenhum",
+        "user_name": "" # Vamos adicionar o nome do usuário
+    }
+    
+    cnx = None
+    cursor = None
+    
+    try:
+        cnx = db_service.get_db_connection()
+        cursor = cnx.cursor(dictionary=True)
+
+        # 1. Buscar dados do usuário (Nome)
+        cursor.execute("SELECT nome FROM usuarios WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        if user:
+            # Pega o primeiro nome
+            dashboard_data["user_name"] = user['nome'].split(' ')[0]
+
+        # 2. Buscar dados de Produtos (para 3 métricas)
+        query_produtos = "SELECT nome_produto, quantidade_produto, tipo_volume FROM produtos WHERE user_id = %s"
+        cursor.execute(query_produtos, (user_id,))
+        produtos = cursor.fetchall()
+        
+        dashboard_data["total_items"] = len(produtos)
+        
+        if produtos:
+            low_stock_count = 0
+            max_qty = -1
+            highest_item = "Nenhum"
+            
+            for item in produtos:
+                qty = float(item['quantidade_produto'])
+                unit = item['tipo_volume']
+                
+                # Lógica de estoque baixo (baseada no seu gui3.py)
+                if (unit == 'Unidades' and qty <= 2) or (unit in ['Gramas', 'Mililitros'] and qty <= 500):
+                    low_stock_count += 1
+                
+                # Lógica de item com maior quantidade (ignora unidades por simplicidade)
+                if qty > max_qty:
+                    max_qty = qty
+                    highest_item = item['nome_produto']
+                    
+            dashboard_data["low_stock_count"] = low_stock_count
+            dashboard_data["highest_stock_item"] = highest_item
+
+        # 3. Buscar dados de Receitas
+        query_receitas = "SELECT COUNT(*) as total FROM receitas WHERE idusuario = %s"
+        cursor.execute(query_receitas, (user_id,))
+        receitas = cursor.fetchone()
+        if receitas:
+            dashboard_data["total_recipes"] = receitas['total']
+            
+    except mysql.connector.Error as err:
+        print(f"Erro ao buscar dados do dashboard: {err}")
+        # A página carrega, mas com dados zerados
+    finally:
+        if cursor:
+            cursor.close()
+        if cnx:
+            cnx.close()
+            
+    # Converte o dicionário para uma string JSON
+    dashboard_json = json.dumps(dashboard_data)
+
+    return render_template('general-page.html', dashboard_json=dashboard_json)
 
 @app.route('/chatbot') # Defines the URL, e.g., http://127.0.0.1:5000/chatbot
 def chatbot_page():
