@@ -1,3 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+:root {
+  /* Dark theme colors */
+  --text-color: #edf3ff;
+  --subheading-color: #3FCEF6;
+  --placeholder-color: #c3cdde;
+  --primary-color: #101623;
+  --secondary-color: #283045;
+  --secondary-hover-color: #333e58;
+  --scrollbar-color: #626a7f;
+}
+
+body.light-theme {
+  /* Light theme colors */
+  --text-color: #090c13;
+  --subheading-color: #318EAD;
+  --placeholder-color: #606982;
+  --primary-color: #f3f7ff;
+  --secondary-color: #dce6f9;
+  --secondary-hover-color: #d2ddf2;
+  --scrollbar-color: #a2aac2;
+}
+
 /* Estilos da tela de carregamento */
 .loader-wrapper {
   position: fixed;
@@ -51,24 +82,28 @@
 
 /* Estilos da sua página */
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0;
-  background-color: #FFFFFF; /* Cor de fundo da página principal */
+  color: var(--text-color);
+  background: var(--primary-color);
   opacity: 0;
   transition: opacity 0.5s ease-in-out;
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
 /* Estilos do menu e do conteúdo */
 .nav-drawer {
-  position: fixed;
+  /* position: fixed;
   top: 0;
-  left: 0;
+  left: 0; */
   width: 250px;
-  height: 100%;
+  height: 100vh;
   background-color: #002333; /* Fundo escuro do menu */
   color: #159A9C;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
   z-index: 999;
+  flex-shrink: 0;
 }
 
 .nav-drawer ul {
@@ -85,14 +120,41 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.logo {
+  display: flex;
+  margin: 0 auto;
+  margin-top: 20px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 3px solid #3FCEF6;
+  background: none;
+  background-image: url('./assets/geli_icon.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
 .nav-drawer li a:hover {
-  background-color: #159A9C; /* Fundo do link ao passar o mouse */
+  background-color: #318EAD; /* Fundo do link ao passar o mouse */
   color: #FFFFFF;
 }
 
-.content {
-  margin-left: 250px;
-  padding: 20px;
+.container {
+  overflow-y: auto;
+  padding: 32px 0 60px;
+  max-height: calc(100vh - 127px);
+  scrollbar-color: var(--scrollbar-color) transparent;
+  flex-grow: 1;
+  position: relative;
+}
+
+.container :where(.app-header) {
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 20px;
+  max-width: 980px;
+  position: relative;
 }
 
 /* Classe para mostrar o body após o carregamento */
@@ -100,16 +162,57 @@ body.loaded {
   opacity: 1;
 }
 
-/* Estilos do termômetro */
-.thermometer-container {
-  width: 200px;
-  height: 300px;
-  position: relative;
-  margin: 50px auto;
+.container .app-header {
+  margin-top: 4vh;
   text-align: center;
 }
 
-#thermometer {
-  width: 150px;
-  height: 300px;
+.app-header .heading {
+  font-size: 3rem;
+  background: linear-gradient(to right, #318EAD, #3FCEF6);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.app-header .sub-heading {
+  font-size: 1.6rem;
+  margin-top: -5px;
+  color: var(--subheading-color);
+}
+
+#theme-toggle-btn {
+  position: fixed;
+  width: 56px;
+  height: 56px;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  gap: 12px;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  transition: 0.3s ease;
+  right: 1.5%;
+  bottom: 2.5%;
+}
+
+#theme-toggle-btn:hover {
+  background: var(--secondary-hover-color);
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 20px 0 100px;
+  }
+  
+  .app-header :is(.heading, .sub-heading) {
+    font-size: 2rem;
+    line-height: 1.4;
+  }
+
+  .nav-drawer {
+    margin-left: -250px;
+  }
 }
