@@ -337,7 +337,11 @@ def profile():
     
     user_preferences = {'allergies': '', 'dietary_restrictions': '', 'other': ''}
     if user_data.get('preferencias'):
-        user_preferences = json.loads(user_data['preferencias'])
+        # Tenta carregar o JSON, se falhar, usa o padrão
+        try:
+            user_preferences = json.loads(user_data['preferencias'])
+        except json.JSONDecodeError:
+            pass # Mantém o padrão
     
     return render_template(
         'profile-page.html', 
@@ -345,6 +349,70 @@ def profile():
         user_preferences=user_preferences,
         success_message=success_message
     )
+
+# --- NOVA ROTA ADICIONADA ---
+@app.route('/recipes')
+def recipes_page():
+    # 1. Verificação de Autenticação (padrão)
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    
+    # 2. Buscar Estoque e Preferências
+    stock_dict = {}
+    user_preferences_json = '{}' # Padrão é um JSON vazio
+    cnx = None
+    cursor = None
+    
+    try:
+        # Pega a conexão do serviço
+        cnx = db_service.get_db_connection()
+        cursor = cnx.cursor(dictionary=True)
+        
+        # --- Lógica do Estoque (copiada de /chatbot) ---
+        query_stock = "SELECT nome_produto, quantidade_produto, tipo_volume from produtos WHERE user_id = %s"
+        cursor.execute(query_stock, (user_id,))
+        
+        for row in cursor.fetchall():
+            item_name = row['nome_produto']
+            item_qty = row['quantidade_produto']
+            item_unit = row['tipo_volume']
+            stock_dict[item_name] = f"{item_qty} {item_unit}"
+        
+        # --- Lógica das Preferências (baseada em /profile) ---
+        query_prefs = "SELECT preferencias FROM usuarios WHERE id = %s"
+        cursor.execute(query_prefs, (user_id,))
+        user_prefs_row = cursor.fetchone()
+        
+        if user_prefs_row and user_prefs_row['preferencias']:
+            user_preferences_json = user_prefs_row['preferencias']
+            
+    except mysql.connector.Error as err:
+        print(f"Erro ao buscar dados para receitas (usuário {user_id}): {err}")
+        # A página ainda deve carregar, mas com dados vazios
+        stock_dict = {}
+        user_preferences_json = '{}'
+    except Exception as e:
+        print(f"Erro inesperado ao buscar dados para receitas: {e}")
+        stock_dict = {}
+        user_preferences_json = '{}'
+    finally:
+        if cursor:
+            cursor.close()
+        if cnx:
+            cnx.close()
+            
+    # 4. Preparar dados para o template
+    stock_json = json.dumps(stock_dict)
+    
+    # 5. Renderizar o template
+    return render_template(
+        'recipes.html', 
+        user_stock_json=stock_json,
+        user_preferences_json=user_preferences_json
+    )
+# --- FIM DA NOVA ROTA ---
 
 
 if __name__ == '__main__':
