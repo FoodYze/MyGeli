@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='general-page/style.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
   <title>Início | MyGeli</title>
@@ -25,7 +25,7 @@
     <div class="logo"></div>
     <ul>
       <li style="background-color: #318EAD;"><a href="#">Geral</a></li>
-      <li><a href="#">Chat</a></li>
+      <li><a href="{{ url_for('chatbot_page') }}">Chat</a></li>
       <li><a href="#">Receitas</a></li>
       <li><a href="#">Estoque</a></li>
       <li><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
@@ -37,6 +37,55 @@
       <h1 class="heading">Olá</h1>
       <h2 class="sub-heading">Como posso te ajudar?</h2>
     </header>
+
+    <div class="dashboard-grid">
+      <div class="dash-card">
+        <span class="material-symbols-rounded icon">inventory_2</span>
+        <div class="card-content">
+          <span class="card-title">Total de Itens</span>
+          <span class="card-value" id="total-items-value">...</span>
+        </div>
+      </div>
+
+      <div class="dash-card low-stock">
+        <span class="material-symbols-rounded icon">warning</span>
+        <div class="card-content">
+          <span class="card-title">Itens Acabando</span>
+          <span class="card-value" id="low-stock-value">...</span>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <span class="material-symbols-rounded icon">menu_book</span>
+        <div class="card-content">
+          <span class="card-title">Receitas Salvas</span>
+          <span class="card-value" id="total-recipes-value">...</span>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <span class="material-symbols-rounded icon">trending_up</span>
+        <div class="card-content">
+          <span class="card-title">Item com Mais Estoque</span>
+          <span class="card-value" id="highest-stock-value">...</span>
+        </div>
+      </div>
+
+      <a href="{{ url_for('chatbot_page') }}" class="dash-card interactive">
+        <span class="material-symbols-rounded icon">auto_awesome</span>
+        <div class="card-content">
+          <span class="card-title">O que fazer hoje?</span>
+          <span class="card-value static">Falar com a Geli</span>
+        </div>
+      </a>
+
+      <div class="dash-card tip">
+        <span class="material-symbols-rounded icon">recycling</span>
+        <div class="card-content">
+          <span class="card-title">Dica Anti-Desperdício</span>
+          <span class="card-value static small">Use seus itens acabando para criar uma nova receita!</span>
+        </div>
+      </div>
 
     <button id="theme-toggle-btn" class="material-symbols-rounded">light_mode</button>
   </div>
@@ -51,6 +100,6 @@
         const GeliIconURL = "{{ url_for('static', filename='chatbot-page/assets/geli_icon.png') }}";
     </script>
 
-  <script src="{{ url_for('static', filename='chatbot-page/script.js') }}"></script>
+  <script src="{{ url_for('static', filename='general-page/script.js') }}"></script>
 </body>
 </html>

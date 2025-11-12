@@ -202,6 +202,101 @@ body.loaded {
   background: var(--secondary-hover-color);
 }
 
+.dashboard-grid {
+  display: grid;
+  /* Cria colunas que se adaptam: 
+     - Mínimo de 150px de largura
+     - Máximo de 1fr (ocupa o espaço disponível)
+     - auto-fit preenche o espaço, criando colunas automaticamente
+  */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+  padding: 0 20px;
+  margin: 25px auto 0;
+  max-width: 980px;
+}
+
+/* Estilo base de cada card */
+.dash-card {
+  background: var(--secondary-color);
+  color: var(--text-color);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  text-decoration: none; /* Para o card clicável */
+}
+
+/* Ícone do card */
+.dash-card .icon {
+  font-size: 2.5rem; /* 40px */
+  color: var(--subheading-color);
+  margin-bottom: 10px;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Título (ex: "Total de Itens") */
+.dash-card .card-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--placeholder-color); /* Um pouco mais suave */
+}
+
+/* Valor (ex: "15") */
+.dash-card .card-value {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-color);
+  line-height: 1.2;
+}
+
+/* Modificador para cards de "dica" ou estáticos */
+.dash-card .card-value.static {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+.dash-card .card-value.static.small {
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--placeholder-color);
+}
+
+/* Card especial para "Itens Acabando" */
+.dash-card.low-stock .icon {
+  color: #FFA500; /* Laranja/Amarelo para Alerta */
+}
+.dash-card.low-stock .card-value {
+  color: #FFA500;
+}
+
+/* Card especial para "Dica" */
+.dash-card.tip {
+  background: #2c3e50; /* Um azul/cinza escuro diferente */
+}
+.dash-card.tip .icon {
+  color: #2ecc71; /* Verde */
+}
+
+/* Efeito de hover para cards que são links */
+.dash-card.interactive {
+  cursor: pointer;
+}
+.dash-card.interactive:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  background: var(--secondary-hover-color);
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 20px 0 100px;
@@ -214,5 +309,26 @@ body.loaded {
 
   .nav-drawer {
     margin-left: -250px;
+  }
+
+  .dashboard-grid {
+    /* Em telas pequenas, força 2 colunas */
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    padding: 0 15px;
+    margin-top: 20px;
+  }
+
+  .dash-card {
+    min-height: 120px;
+    padding: 15px;
+  }
+
+  .dash-card .icon {
+    font-size: 2rem; /* 32px */
+  }
+
+  .dash-card .card-value {
+    font-size: 1.5rem;
   }
 }

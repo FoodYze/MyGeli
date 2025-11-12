@@ -44,12 +44,15 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
 --
 CREATE TABLE IF NOT EXISTS `historico_uso` (
   `id_historico` INT(11) NOT NULL AUTO_INCREMENT,
+  `id_user` INT(11) NOT NULL,
   `nome_receita` VARCHAR(255) NOT NULL,
   `nome_ingrediente` VARCHAR(255) NOT NULL,
   `quantidade_usada` DECIMAL(10,2) NOT NULL,
   `unidade_medida` VARCHAR(50) DEFAULT NULL,
   `data_hora_uso` TIMESTAMP NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id_historico`)
+  PRIMARY KEY (`id_historico`),
+  KEY `idx_id_user` (`id_user`),
+  CONSTRAINT `fk_hist_usuarios` FOREIGN KEY (`id_user`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
