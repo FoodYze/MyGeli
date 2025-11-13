@@ -28,24 +28,28 @@ document.addEventListener('DOMContentLoaded', () => {
   updateProgress();
  
   // ----------------------------------------------------- //
-  let stockString = "Nenhum item em estoque informado."; // Mensagem padrão
+  let stockString = "Nenhum item em estoque informado.";
+  let preferencesString = "Nenhuma preferência, restrição ou objetivo informado.";
+  
     try {
-        const stockDataElement = document.getElementById('app-data');
-        if (stockDataElement && stockDataElement.textContent.trim() !== "") {
-            // 1. Lê o JSON que o Flask injetou
-            const stockData = JSON.parse(stockDataElement.textContent);
-            // 2. Transforma o objeto em array de [chave, valor]
-            const stockEntries = Object.entries(stockData);
-            
-            if (stockEntries.length > 0) {
-                // 3. Formata como: "Arroz: 1300.00 Gramas, Frango: 300.00 Gramas"
-                stockString = stockEntries.map(([item, qty]) => `${item}: ${qty}`).join(', ');
-            }
-        }
-    } catch (e) {
-        console.error("Erro ao carregar o estoque do usuário:", e);
-        // stockString continua com a mensagem padrão
-    }
+    const dataElement = document.getElementById('app-data');
+    if (dataElement && dataElement.textContent.trim() !== "") {
+      
+      const pageData = JSON.parse(dataElement.textContent);
+      
+      const stockData = pageData.stock || {};
+      const stockEntries = Object.entries(stockData);
+      if (stockEntries.length > 0) {
+        stockString = stockEntries.map(([item, qty]) => `${item}: ${qty}`).join(', ');
+      }
+
+      if (pageData.preferences) {
+        preferencesString = pageData.preferences;
+      }
+    }
+  } catch (e) {
+    console.error("Erro ao carregar dados do usuário (estoque/preferências):", e);
+  }
 
   const container = document.querySelector(".container");
   const chatsContainer = document.querySelector(".chats-container");
@@ -60,10 +64,15 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const SYSTEM_INSTRUCTION = `
   # 1. PERSONA E MISSÃO
-  "Você é Geli, uma chef virtual particular. Sua personalidade é amigável, divertida, calorosa e encorajadora. Sua missão é facilitar a culinária prática e combater o desperdício de alimentos (ODS 12). Você deve criar apenas receitas aprovadas e testadas pela comunidade ou por especialistas. Sempre que possível, ao sugerir receitas, priorize ingredientes listados no 'ESTOQUE ATUAL' do usuário para cumprir sua missão."
+  "Você é Geli, uma chef virtual particular. Sua personalidade é amigável, divertida, calorosa e encorajadora. Sua missão é facilitar a culinária prática e combater o desperdício de alimentos (ODS 12). Você deve criar apenas receitas aprovadas e testadas pela comunidade ou por especialistas. Sempre que possível, ao sugerir receitas, priorize ingredientes listados no 'ESTOQUE ATUAL' do usuário para cumprir sua missão."
 
-  # ESTOQUE ATUAL DO USUÁRIO
-  "${stockString}"
+  # PREFERÊNCIAS E RESTRIÇÕES DO USUÁRIO (REGRA MÁXIMA!)
+  # Esta seção detalha as alergias, restrições, objetivos e gostos do usuário.
+  # A menos que o usuário não tenha informado, você DEVE seguir estas regras à risca, especialmente alergias e restrições.
+  "${preferencesString}"
+
+  # ESTOQUE ATUAL DO USUÁRIO
+  "${stockString}"
   
   # 2. REGRAS INQUEBRÁVEIS
   "REGRA 1: USE MARKDOWN. Use formatação Markdown (como ### para títulos, * para listas...) para tornar suas respostas claras e fáceis de ler."
