@@ -132,6 +132,40 @@ def formatar_receitas_para_ia(lista_titulos):
     items_str_list = [f"- {titulo}" for titulo in lista_titulos]
     return header + "\n".join(items_str_list)
 
+def buscar_preferencias_do_bd(conexao, user_id):
+    """Busca a string de preferências do usuário no BD."""
+    if not conexao or not conexao.is_connected():
+        print("Log: Conexão com BD indisponível para buscar preferências.")
+        return None
+    if not user_id:
+        print("Log: user_id nulo. Nenhuma preferência será buscada.")
+        return None
+    
+    try:
+        cursor = conexao.cursor()
+        # A coluna se chama 'preferencias' na tabela 'usuarios'
+        cursor.execute("SELECT preferencias FROM usuarios WHERE id = %s", (user_id,))
+        resultado = cursor.fetchone()
+        cursor.close()
+        
+        if resultado and resultado[0]:
+            print(f"DEBUG: Preferências encontradas para user_id {user_id}.")
+            return resultado[0] # Retorna a string
+        else:
+            print(f"DEBUG: Nenhuma preferência encontrada para user_id {user_id}.")
+            return None
+    except Error as e:
+        print(f"Erro ao buscar preferências do banco de dados: {e}")
+        return None
+
+def formatar_preferencias_para_ia(prefs_string):
+    """Formata a string de preferências para a IA."""
+    if not prefs_string or not prefs_string.strip():
+        return "\n\nPREFERÊNCIAS E RESTRIÇÕES DO USUÁRIO: Nenhuma preferência, restrição ou objetivo informado."
+    
+    header = "\n\nPREFERÊNCIAS E RESTRIÇÕES DO USUÁRIO (REGRA MÁXIMA!):\n# Você DEVE seguir estas regras à risca, especialmente alergias e restrições.\n"
+    return f"{header}\"{prefs_string}\""
+
 # --- INÍCIO: Configuração da API Gemini ---
 
 # Carrega a chave da API a partir de uma variável de ambiente para mais segurança.
@@ -333,15 +367,6 @@ class App(ctk.CTk):
         self.back_btn.pack(side="left", padx=(10,5), pady=7.5)
 
         self.title_label = ctk.CTkLabel(self.header, text=f"Geli (Olá, {self.user_first_name}!)",
-                                        font=("Helvetica", 20, "bold"), text_color="white")
-        self.title_label.pack(side="left", padx=(5,0), pady=10)
-
-        self.back_btn = ctk.CTkButton(self.header, text="←", width=35, height=35,
-                                      fg_color="transparent", hover_color="#0066CC",
-                                      font=("Helvetica", 22, "bold"), text_color="white", command=self.voltar)
-        self.back_btn.pack(side="left", padx=(10,5), pady=7.5)
-
-        self.title_label = ctk.CTkLabel(self.header, text="Geli",
                                         font=("Helvetica", 20, "bold"), text_color="white")
         self.title_label.pack(side="left", padx=(5,0), pady=10)
 
@@ -561,9 +586,20 @@ class App(ctk.CTk):
     def processar_resposta_bot(self, user_message):
         lista_estoque = buscar_estoque_do_bd(self.conexao, self.user_id)
         estoque_formatado_para_ia = formatar_estoque_para_ia(lista_estoque)
+        
         lista_titulos_receitas = buscar_titulos_receitas(self.conexao, self.user_id)
         receitas_formatado_para_ia = formatar_receitas_para_ia(lista_titulos_receitas)
-        mensagem_completa_para_ia = f"{user_message}{estoque_formatado_para_ia}{receitas_formatado_para_ia}"
+
+        prefs_string = buscar_preferencias_do_bd(self.conexao, self.user_id)
+        prefs_formatado_para_ia = formatar_preferencias_para_ia(prefs_string)
+        
+        mensagem_completa_para_ia = (
+            f"{user_message}"
+            f"{prefs_formatado_para_ia}"
+            f"{estoque_formatado_para_ia}"
+            f"{receitas_formatado_para_ia}"
+        )
+        
         resposta_bot = self.gerar_resposta_api(mensagem_completa_para_ia)
         
         is_recipe = False
