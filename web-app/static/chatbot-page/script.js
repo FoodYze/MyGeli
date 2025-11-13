@@ -32,24 +32,24 @@ document.addEventListener('DOMContentLoaded', () => {
   let preferencesString = "Nenhuma preferência, restrição ou objetivo informado.";
   
     try {
-    const dataElement = document.getElementById('app-data');
-    if (dataElement && dataElement.textContent.trim() !== "") {
-      
-      const pageData = JSON.parse(dataElement.textContent);
-      
-      const stockData = pageData.stock || {};
-      const stockEntries = Object.entries(stockData);
-      if (stockEntries.length > 0) {
-        stockString = stockEntries.map(([item, qty]) => `${item}: ${qty}`).join(', ');
-      }
+      const dataElement = document.getElementById('app-data');
+      if (dataElement && dataElement.textContent.trim() !== "") {
 
-      if (pageData.preferences) {
-        preferencesString = pageData.preferences;
-      }
-    }
-  } catch (e) {
-    console.error("Erro ao carregar dados do usuário (estoque/preferências):", e);
-  }
+        const pageData = JSON.parse(dataElement.textContent);
+
+        const stockData = pageData.stock || {};
+        const stockEntries = Object.entries(stockData);
+        if (stockEntries.length > 0) {
+          stockString = stockEntries.map(([item, qty]) => `${item}: ${qty}`).join(', ');
+        }
+
+        if (pageData.preferences) {
+          preferencesString = pageData.preferences;
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao carregar dados do usuário (estoque/preferências):", e);
+    }
 
   const container = document.querySelector(".container");
   const chatsContainer = document.querySelector(".chats-container");
