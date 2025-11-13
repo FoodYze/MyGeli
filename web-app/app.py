@@ -1,8 +1,10 @@
-from flask import Flask, request, redirect, session, make_response, abort, render_template, url_for
+from flask import Flask, request, redirect, session, make_response, abort, render_template, url_for, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import mysql.connector
 from mysql.connector import errorcode, IntegrityError
 import os
+import traceback
+import re
 import hashlib
 from datetime import datetime, timedelta
 import json
@@ -426,6 +428,113 @@ def recipes_page():
         user_preferences_json=user_preferences_json
     )
 # --- FIM DA NOVA ROTA ---
+
+def _parse_ingredients_from_recipe_web(recipe_text):
+    """Extrai ingredientes marcados com '(do estoque)'."""
+    # Padrão para encontrar QUALQUER linha que termine com "(do estoque)"
+    pattern_linha_estoque = re.compile(r"^\s*(.*?)\s+\(do estoque\)", re.MULTILINE | re.IGNORECASE)
+    matches = pattern_linha_estoque.findall(recipe_text)
+    
+    parsed_ingredients = []
+    for item_str in matches:
+        # Padrão para separar número, unidade (opcional) e o resto que é o nome
+        match_componentes = re.match(r"^\s*([\d\.,]+)\s*(\w*)\s*(?:de\s)?(.*)", item_str.strip(), re.IGNORECASE)
+        
+        if match_componentes:
+            try:
+                quantidade_str = match_componentes.group(1).replace(',', '.')
+                quantidade = float(quantidade_str)
+                unidade = match_componentes.group(2).strip()
+                nome = match_componentes.group(3).strip()
+
+                if not nome:
+                    nome = unidade
+                    unidade = 'unidade(s)'
+
+                if nome.lower().startswith('de '):
+                    nome = nome[3:]
+
+                parsed_ingredients.append({"nome": nome, "quantidade": quantidade, "unidade": unidade})
+
+            except (ValueError, IndexError):
+                print(f"AVISO (Web): Não foi possível extrair a quantidade da linha: '{item_str}'")
+                continue
+
+    print(f"DEBUG (Web): Ingredientes para baixa extraídos: {parsed_ingredients}")
+    return parsed_ingredients
+
+def _execute_stock_update_web(user_id, recipe_data):
+    """Dá baixa no estoque e salva no histórico."""
+    if not recipe_data:
+        raise ValueError("Dados da receita estão vazios.")
+        
+    recipe_title = recipe_data.get("titulo", "Receita não identificada")
+    ingredients_to_update = recipe_data.get("ingredientes", [])
+    
+    if not ingredients_to_update:
+         raise ValueError("Nenhum ingrediente '(do estoque)' foi encontrado na receita.")
+
+    cnx, cursor = None, None
+    try:
+        cnx = db_service.get_db_connection() # Pega uma nova conexão
+        cursor = cnx.cursor()
+        
+        for item in ingredients_to_update:
+            nome = item['nome']
+            quantidade_a_remover = item['quantidade']
+            unidade = item.get('unidade', '')
+            
+            # 1. ATUALIZA O ESTOQUE
+            sql_update_stock = """
+                UPDATE produtos 
+                SET quantidade_produto = quantidade_produto - %s 
+                WHERE LOWER(nome_produto) = LOWER(%s) AND user_id = %s AND quantidade_produto >= %s
+            """
+            cursor.execute(sql_update_stock, (quantidade_a_remover, nome, user_id, quantidade_a_remover))
+            
+            # 2. REGISTRA NO HISTÓRICO
+            sql_insert_history = """
+                INSERT INTO historico_uso (id_user, nome_receita, nome_ingrediente, quantidade_usada, unidade_medida)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql_insert_history, (user_id, recipe_title, nome, quantidade_a_remover, unidade))
+        
+        # 3. LIMPA ITENS ZERADOS
+        sql_delete_zeros = "DELETE FROM produtos WHERE user_id = %s AND quantidade_produto <= 0"
+        cursor.execute(sql_delete_zeros, (user_id,))
+        
+        cnx.commit()
+        print(f"Log (Web): Estoque atualizado para user_id {user_id}.")
+        
+    except mysql.connector.Error as e:
+        print(f"ERRO SQL (Web) ao atualizar estoque: {e}")
+        if cnx: cnx.rollback()
+        raise RuntimeError(f"Erro de Banco de Dados: {e}") # Re-levanta o erro
+    finally:
+        if cursor: cursor.close()
+        if cnx: cnx.close()
+        
+@app.route('/api/update_stock', methods=['POST'])
+def update_stock_route():
+    if 'user_id' not in session:
+        return jsonify({"error": "Não autorizado"}), 401
+    
+    user_id = session['user_id']
+    recipe_data = request.json
+    
+    if not recipe_data or 'ingredientes' not in recipe_data:
+        return jsonify({"error": "Dados da receita inválidos."}), 400
+        
+    try:
+        _execute_stock_update_web(user_id, recipe_data)
+        # Se chegou aqui, deu certo
+        return jsonify({"message": "Perfeito! Já dei baixa dos ingredientes no seu estoque e registrei no seu histórico. Bom apetite!"})
+        
+    except Exception as e:
+        print(f"ERRO CRÍTICO na rota /api/update_stock: {e}")
+        traceback.print_exc()
+        # Envia o erro exato para o frontend
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
