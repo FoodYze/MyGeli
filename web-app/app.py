@@ -278,7 +278,10 @@ def chatbot_page():
         return redirect(url_for('login'))
     
     user_id = session['user_id']
+
     stock_dict = {}
+    user_prefs_string = "Nenhuma preferência informada."
+    
     cnx = None
     cursor = None
     
@@ -293,8 +296,14 @@ def chatbot_page():
             item_name = row['nome_produto']
             item_qty = row['quantidade_produto']
             item_unit = row['tipo_volume']
-            
             stock_dict[item_name] = f"{item_qty} {item_unit}"
+
+        query_prefs = "SELECT preferencias FROM usuarios WHERE id = %s"
+        cursor.execute(query_prefs, (user_id,))
+        prefs_row = cursor.fetchone()
+        
+        if prefs_row and prefs_row['preferencias']:
+            user_prefs_string = prefs_row['preferencias']
             
     except mysql.connector.Error as err:
         print(f"Erro ao buscar estoque do usuário {user_id}: {err}")
@@ -304,9 +313,13 @@ def chatbot_page():
         if cnx:
             cnx.close()
             
-    stock_json = json.dumps(stock_dict)
+    page_data = {
+        "stock": stock_dict,
+        "preferences": user_prefs_string
+    }
+    page_data_json = json.dumps(page_data)
     
-    return render_template('chatbot-page.html', user_stock_json=stock_json)
+    return render_template('chatbot-page.html', page_data_json=page_data_json)
 
 @app.route('/profile', methods=['GET', 'POST'])
 def profile():
