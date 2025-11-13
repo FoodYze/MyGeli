@@ -767,10 +767,11 @@ class App(ctk.CTk):
                 """
                 cursor.execute(sql_update_stock, (quantidade_a_remover, nome, self.user_id, quantidade_a_remover))
                 sql_insert_history = """
-                    INSERT INTO historico_uso (nome_receita, nome_ingrediente, quantidade_usada, unidade_medida)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO historico_uso (id_user, nome_receita, nome_ingrediente, quantidade_usada, unidade_medida)
+                    VALUES (%s, %s, %s, %s, %s)
                 """
-                cursor.execute(sql_insert_history, (recipe_title, nome, quantidade_a_remover, unidade))
+                # Adiciona self.user_id (usuário logado) como o primeiro parâmetro
+                cursor.execute(sql_insert_history, (self.user_id, recipe_title, nome, quantidade_a_remover, unidade))
                 
             # --- 3. ADIÇÃO: COMANDO DELETE (Limpa itens zerados) ---
             # Após o loop, e antes de 'commitar', adicionamos este comando.
