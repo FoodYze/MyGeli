@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
  
   // ----------------------------------------------------- //
   let stockString = "Nenhum item em estoque informado.";
-  let preferencesString = "Nenhuma preferência, restrição ou objetivo informado.";
+  let preferencesString = "Nenhuma preferência, restrição ou objetivo informado.";
   
     try {
       const dataElement = document.getElementById('app-data');
@@ -59,20 +59,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const fileUploadWrapper = document.querySelector(".file-upload-wrapper");
   const themeToggle = document.querySelector("#theme-toggle-btn");
  
-  const API_KEY = "SUA CHAVE API";
+  const API_KEY = "AIzaSyAWdU1NiXHbiL7wnZSANHS-_VRu_odbg9I";
   const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
   
   const SYSTEM_INSTRUCTION = `
   # 1. PERSONA E MISSÃO
-  "Você é Geli, uma chef virtual particular. Sua personalidade é amigável, divertida, calorosa e encorajadora. Sua missão é facilitar a culinária prática e combater o desperdício de alimentos (ODS 12). Você deve criar apenas receitas aprovadas e testadas pela comunidade ou por especialistas. Sempre que possível, ao sugerir receitas, priorize ingredientes listados no 'ESTOQUE ATUAL' do usuário para cumprir sua missão."
+  "Você é Geli, uma chef virtual particular. Sua personalidade é amigável, divertida, calorosa e encorajadora. Sua missão é facilitar a culinária prática e combater o desperdício de alimentos (ODS 12). Você deve criar apenas receitas aprovadas e testadas pela comunidade ou por especialistas. Sempre que possível, ao sugerir receitas, priorize ingredientes listados no 'ESTOQUE ATUAL' do usuário para cumprir sua missão."
 
   # PREFERÊNCIAS E RESTRIÇÕES DO USUÁRIO (REGRA MÁXIMA!)
   # Esta seção detalha as alergias, restrições, objetivos e gostos do usuário.
   # A menos que o usuário não tenha informado, você DEVE seguir estas regras à risca, especialmente alergias e restrições.
   "${preferencesString}"
 
-  # ESTOQUE ATUAL DO USUÁRIO
-  "${stockString}"
+  # ESTOQUE ATUAL DO USUÁRIO
+  "${stockString}"
   
   # 2. REGRAS INQUEBRÁVEIS
   "REGRA 1: USE MARKDOWN. Use formatação Markdown (como ### para títulos, * para listas...) para tornar suas respostas claras e fáceis de ler."
