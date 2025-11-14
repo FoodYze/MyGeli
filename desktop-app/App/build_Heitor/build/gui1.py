@@ -11,6 +11,9 @@ from session_manager import SessionManager
 from tkinter import messagebox
 import re # Para validação Regex de email e nome
 
+import socket
+import hashlib
+
 # --- Conexão com Banco de Dados ---
 def conectar_mysql(host, database, user, password):
     """
@@ -35,6 +38,19 @@ def abrir_gui(nome_arquivo):
         subprocess.Popen([sys.executable, caminho_script])
     except Exception as e:
         print(f"Erro ao tentar abrir {nome_arquivo}: {e}")
+        
+def _get_hashed_ip():
+    """Obtém o IP local e o criptografa (hash SHA-256) como no Flask."""
+    try:
+        # Tenta pegar o IP local da máquina
+        ip_address = socket.gethostbyname(socket.gethostname())
+    except Exception:
+        # Fallback se não conseguir (ex: sem rede)
+        ip_address = '127.0.0.1'
+    
+    # Criptografa (hash) o IP
+    hashed_ip = hashlib.sha256(ip_address.encode('utf-8')).hexdigest()
+    return hashed_ip
 
 # --- Classe Principal da Aplicação ---
 class App(ctk.CTk):
@@ -52,7 +68,6 @@ class App(ctk.CTk):
     CARD_COLOR = "#FFFFFF"
     CARD_BORDER_COLOR = "#E0E0E0"
     BUTTON_DISABLED_COLOR = "#B0B0B0" # Um tom de cinza
-    # --- ADICIONADO: Cor para botão de exclusão ---
     BUTTON_DANGER_COLOR = "#D32F2F" # Vermelho
     BUTTON_DANGER_HOVER_COLOR = "#B71C1C" # Vermelho escuro
 
@@ -68,6 +83,8 @@ class App(ctk.CTk):
         
         self.user_id = session_data.get("user_id")
         self.user_first_name = session_data.get("first_name")
+        
+        self._validar_sessao_no_db()
 
         self._configurar_janela()
         self._criar_fontes()
@@ -202,6 +219,77 @@ class App(ctk.CTk):
             self._abrir_tela_login()
 
     # --- ADICIONADO: Funções de Logout e Exclusão ---
+    
+    def _validar_sessao_no_db(self):
+        """
+        Verifica se o user_id da sessão ainda existe no banco de dados.
+        Se não existir (ex: usuário foi excluído), limpa a sessão.
+        """
+        if not self.user_id:
+            return  # Nenhuma sessão para validar
+
+        # Se não há conexão no início, não é possível validar.
+        # É mais seguro deslogar o usuário.
+        if not self.db_connection or not self.db_connection.is_connected():
+            print("Log: Sessão não pode ser validada (BD offline). Limpando.")
+            self.user_id = None
+            self.user_first_name = None
+            self.session_manager.clear_session()
+            return
+
+        try:
+            cursor = self.db_connection.cursor(dictionary=True)
+            cursor.execute("SELECT id, nome FROM usuarios WHERE id = %s", (self.user_id,))
+            user = cursor.fetchone()
+            cursor.close()
+
+            if not user:
+                # O usuário NÃO existe mais no DB (o seu caso do user 5!)
+                print(f"Log: Usuário da sessão (ID: {self.user_id}) não encontrado no DB. Limpando sessão.")
+                self.user_id = None
+                self.user_first_name = None
+                self.session_manager.clear_session()
+            else:
+                # O usuário existe. Apenas confirma os dados.
+                # Atualiza o nome caso tenha mudado no banco
+                self.user_first_name = user['nome'].split(' ')[0]
+                print(f"Log: Sessão (ID: {self.user_id}) validada com sucesso no DB.")
+
+        except Error as e:
+            print(f"Log: Erro de MySQL ao validar sessão: {e}")
+            # Em caso de erro de DB, é mais seguro deslogar.
+            self.user_id = None
+            self.user_first_name = None
+            self.session_manager.clear_session()
+            
+    def _registrar_log(self, user_id, action, status):
+        """
+        Registra uma ação na tabela 'log' do banco de dados.
+        """
+        if not self.db_connection or not self.db_connection.is_connected():
+            print(f"Log: Conexão de BD ausente. Log de '{action}' não registrado.")
+            return
+
+        cursor = None
+        try:
+            hashed_ip = _get_hashed_ip() # Chama a função global
+            
+            cursor = self.db_connection.cursor()
+            query = """
+                INSERT INTO log (id_user, action, status, ip_address) 
+                VALUES (%s, %s, %s, %s)
+            """
+            cursor.execute(query, (user_id, action, status, hashed_ip))
+            self.db_connection.commit()
+            print(f"Log: Ação '{action}' registrada para user_id {user_id}.")
+
+        except Error as e:
+            print(f"Log: ERRO ao registrar log: {e}")
+            if self.db_connection:
+                self.db_connection.rollback()
+        finally:
+            if cursor:
+                cursor.close()
 
     def _confirmar_logout(self):
         """Pede confirmação para sair."""
@@ -217,6 +305,9 @@ class App(ctk.CTk):
 
     def _executar_logout(self):
         """Limpa a sessão e atualiza a GUI."""
+        if self.user_id:
+            self._registrar_log(self.user_id, 'Logout', 'Success')
+        
         if hasattr(self, 'opcoes_window') and self.opcoes_window.winfo_exists():
             self.opcoes_window.destroy()
             
@@ -349,7 +440,11 @@ class App(ctk.CTk):
                 return
             if not check_password_hash(user['senha'], senha):
                 error_label.configure(text="Senha incorreta! Tente novamente.")
+                self._registrar_log(user['id'], 'Login', 'Failure')
                 return
+            
+            self._registrar_log(user['id'], 'Login', 'Success')
+            
             self.user_id = user['id']
             full_name = user['nome']
             self.user_first_name = full_name.split(' ')[0]
@@ -492,6 +587,9 @@ class App(ctk.CTk):
             new_user_id = cursor.lastrowid
             self.db_connection.commit()
             cursor.close()
+            
+            self._registrar_log(new_user_id, 'Register', 'Success')
+            
             self.user_id = new_user_id
             self.user_first_name = nome.split(' ')[0]
             self.session_manager.save_session(self.user_id, self.user_first_name)

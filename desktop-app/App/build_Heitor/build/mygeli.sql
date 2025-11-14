@@ -34,9 +34,9 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `telefone` VARCHAR(30) DEFAULT NULL,
   `email` VARCHAR(255) NOT NULL,
   `senha` VARCHAR(255) NOT NULL,
+  `preferencias` TEXT DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_email` (`email`),
-  `preferencias` text DEFAULT NULL
+  UNIQUE KEY `uk_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -106,8 +106,9 @@ CREATE TABLE IF NOT EXISTS `produtos` (
   `data_criacao` TIMESTAMP NOT NULL DEFAULT current_timestamp(),
   `data_modificacao` TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id_produto`),
-  UNIQUE KEY `uk_nome_produto` (`nome_produto`),
-  CONSTRAINT `fk_produto_usuario` FOREIGN KEY (`user_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_produto_usuario` FOREIGN KEY (`user_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE,
+  UNIQUE KEY `uk_user_produto` (`user_id`, `nome_produto`) 
+  
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
