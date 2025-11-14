@@ -110,27 +110,3 @@ Agradecemos aos nossos professores e toda equipe da Fatec Rio Claro, pela ajuda,
 <p align="center">
   <img src="https://komarev.com/ghpvc/?username=FoodYze&color=blue" alt="Visitas ao perfil" />
 </p>
-
-
-# Como rodar o app na nova estrutura Clean?
-
-1. Ao abrir o projeto no VSCode ou outro editor, abra o terminal e crie o ambiente virtual.
-```
-python -m venv venv
-```
-2. Em seguida, é necessário instalar as dependências pendentes para o app funcionar.
-```
-pip install -r requirements.txt
-```
-3. Após isso, digite o seguinte comando no terminal: "cd web-app". Você será direcionado para a pasta do web-app.
-```
-cd web-app
-```
-4. Em seguida, rode o seguinte comando para abrir a aplicação no navegador:
-```
-python -m interfaces.web.app
-```
-5. No terminal, clique no link → "* Running on http://127.0.0.1:5000"
-6. Com isso, a página web de login será aberta no navegador para testes.
-
-Obs: Se quiser testar a funcionalidade de login e cadastro, lembre-se de abrir o banco de dados!
