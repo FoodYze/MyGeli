@@ -1,41 +1,54 @@
 import json
 from pathlib import Path
+import os
 
 class SessionManager:
     """
-    Gerencia a sessão do usuário (ID e Nome) em um arquivo JSON.
+    Gerencia a sessão persistente usando tokens locais.
+    Salva em %LOCALAPPDATA% no Windows.
     """
-    SESSION_FILE = Path(__file__).parent / "session.json"
-
-    def save_session(self, user_id, first_name):
-        """Salva o ID e o primeiro nome do usuário no arquivo de sessão."""
+    def __init__(self):
+        APP_NAME = "MyGeli"
+        # Define o caminho correto (%LOCALAPPDATA%)
+        local_app_data = os.getenv('LOCALAPPDATA')
+        if local_app_data:
+            self.data_dir = Path(local_app_data) / APP_NAME
+        else:
+            self.data_dir = Path.home() / f".{APP_NAME.lower()}"
+            
         try:
-            data = {"user_id": user_id, "first_name": first_name}
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            print(f"Log CRÍTICO: Falha ao criar diretório de sessão: {e}")
+            self.data_dir = Path(__file__).parent 
+
+        self.SESSION_FILE = self.data_dir / "auth_token.json"
+
+    def save_token(self, selector, authenticator):
+        """Salva o par de tokens localmente (como um cookie)."""
+        try:
+            data = {"selector": selector, "authenticator": authenticator}
             with open(self.SESSION_FILE, 'w', encoding='utf-8') as f:
                 json.dump(data, f)
-            print(f"Log: Sessão salva. Data: {data}")
+            print("Log: Token de persistência salvo localmente.")
         except Exception as e:
-            print(f"Log: Erro ao salvar sessão: {e}")
+            print(f"Log: Erro ao salvar token local: {e}")
 
-    def get_session(self):
-        """Lê os dados da sessão do arquivo, se existir."""
+    def get_token(self):
+        """Lê o token local, se existir."""
         try:
             if not self.SESSION_FILE.exists():
-                return {}  # Retorna dicionário vazio se não há sessão
-            
+                return None
             with open(self.SESSION_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                print(f"Log: Sessão carregada. Data: {data}")
-                return data
-        except Exception as e:
-            print(f"Log: Erro ao ler sessão: {e}")
-            return {} # Retorna dicionário vazio em caso de erro
+                return json.load(f)
+        except Exception:
+            return None
 
     def clear_session(self):
-        """Limpa a sessão (logout)."""
+        """Apaga o token local (Logout)."""
         try:
             if self.SESSION_FILE.exists():
                 self.SESSION_FILE.unlink()
-            print("Log: Sessão limpa (logout).")
+            print("Log: Token local apagado (logout).")
         except Exception as e:
-            print(f"Log: Erro ao limpar sessão: {e}")
+            print(f"Log: Erro ao limpar token local: {e}")
