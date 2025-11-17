@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="assets/geli_icon.png">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <title>Lista de Compras | MyGeli</title>
+</head>
+<body>
+  
+  <!-- Tela de Carregamento -->
+  <div class="loader-wrapper" id="loader-wrapper">
+    <div class="loader-container">
+      <p class="loader-text">Carregando</p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <p class="progress-percentage" id="progress-percentage">0%</p>
+    </div>
+  </div>
+
+  <!-- Menu Lateral -->
+  <nav class="nav-drawer" aria-label="Menu de Navegação Principal">
+    <div class="logo"></div>
+    <ul>
+      <li><a href="../general-page/index.html">Geral</a></li>
+      <li><a href="../chatbot-page/index.html">Chat</a></li>
+      <li><a href="../recipespage/index.html">Receitas</a></li>
+      <li><a href="#">Estoque</a></li>
+      <li style="background-color: #318EAD;"><a href="#">Lista de Compras</a></li>
+      <li><a href="../profile-page/index.html">Meu Perfil</a></li>
+    </ul>
+  </nav>
+
+  <!-- Container Principal -->
+  <div class="container" id="main-content">
+    <!-- Header -->
+    <header class="app-header">
+      <h1 class="heading">Lista de Compras</h1>
+      <h2 class="sub-heading">As sugestões baseadas no seu consumo!<br>Os preços são apenas médias de vários produtos!</h2>
+    </header>
+
+    <!-- Container da Lista -->
+    <div class="lista-container">
+      <!-- Frame da Lista -->
+      <div class="lista-frame" id="lista-frame">
+        <div class="loading-message">Gerando sugestões com base na média...</div>
+      </div>
+
+      <!-- Botões de Ação -->
+      <div class="botoes-frame">
+        <button class="btn-action btn-adicionar" id="btn-adicionar">
+          <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 8px;">add_circle</span>
+          Adicionar Item
+        </button>
+        <button class="btn-action btn-remover" id="btn-remover-selecionados">
+          <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 8px;">delete</span>
+          Remover Selecionados
+        </button>
+        <button class="btn-action btn-salvar" id="btn-salvar-lista">
+          <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 8px;">save</span>
+          Salvar Lista (.txt)
+        </button>
+      </div>
+    </div>
+
+    <!-- Botão de Tema -->
+    <button id="theme-toggle-btn" class="material-symbols-rounded">light_mode</button>
+  </div>
+
+  <!-- Modal para Adicionar Item -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-dialog">
+      <h3 class="modal-title">Adicionar Novo Item</h3>
+      
+      <div class="form-group">
+        <label class="form-label" for="input-nome">Nome do Produto:</label>
+        <input type="text" class="form-input" id="input-nome" placeholder="Ex: Arroz">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-quantidade">Quantidade:</label>
+        <input type="text" class="form-input" id="input-quantidade" placeholder="Ex: 5">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="select-unidade">Unidade:</label>
+        <select class="form-select" id="select-unidade">
+          <option>Unidades</option>
+          <option>Quilos (Kg)</option>
+          <option>Gramas (g)</option>
+          <option>Litros (L)</option>
+          <option>Mililitros (ml)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="select-categoria">Categoria:</label>
+        <select class="form-select" id="select-categoria">
+          <option>Hortifruti</option>
+          <option>Mercearia</option>
+          <option>Proteínas</option>
+          <option>Laticínios</option>
+          <option>Padaria</option>
+          <option>Bebidas</option>
+          <option>Congelados</option>
+          <option>Outros</option>
+        </select>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn-modal btn-modal-cancel" id="btn-modal-cancel">Cancelar</button>
+        <button class="btn-modal btn-modal-confirm" id="btn-modal-confirm">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
