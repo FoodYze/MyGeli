@@ -133,7 +133,7 @@ class App(ctk.CTk):
         user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._acao_usuario)
         user_button.pack(side="left", padx=10, pady=10)
         self.user_name_label = ctk.CTkLabel(header_frame, text="", font=self.header_name_font, text_color=self.BUTTON_TEXT_COLOR)
-        options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=lambda: self._abrir_gui_com_verificacao("gui_preferencias.py"))
+        options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._abrir_preferencias_com_origem)
         options_button.pack(side="right", padx=5, pady=5)
         calendario_button = ctk.CTkButton(header_frame, text="", image=calendario_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=lambda: self._abrir_gui_com_verificacao("gui5_planejamento.py"))
         calendario_button.pack(side="right", padx=5, pady=5)
@@ -183,6 +183,19 @@ class App(ctk.CTk):
             # Não faz rollback aqui para não atrapalhar a transação principal se houver
         finally:
             if cursor: cursor.close()
+
+    def _abrir_preferencias_com_origem(self):
+        if self.user_id:
+            try:
+                self.destroy()
+                caminho_script = str(Path(__file__).parent / "gui_preferencias.py")
+                # Envia "gui1.py" como argumento
+                subprocess.Popen([sys.executable, caminho_script, "gui1.py"])
+            except Exception as e:
+                print(f"Erro ao tentar abrir gui_preferencias.py: {e}")
+        else:
+            messagebox.showwarning("Acesso Restrito", "Entre em uma conta para utilizar a ferramenta!")
+
 
     # --- MÉTODOS DE PERSISTÊNCIA ---
     def _create_remember_token(self):

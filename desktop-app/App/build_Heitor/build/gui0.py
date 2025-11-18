@@ -559,7 +559,7 @@ class App(ctk.CTk):
         self.destroy()
         try:
             preferencias_path = str(OUTPUT_PATH / "gui_preferencias.py")
-            subprocess.Popen([sys.executable, preferencias_path])
+            subprocess.Popen([sys.executable, preferencias_path, "gui0.py"])
         except Exception as e:
             print(f"Erro ao tentar abrir gui_preferencias.py: {e}")
 

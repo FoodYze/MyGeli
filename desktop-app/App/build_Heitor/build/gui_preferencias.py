@@ -43,6 +43,9 @@ class PreferencesApp(ctk.CTk):
         self.conexao = conexao_bd
         self.session_manager = SessionManager()
         self.user_id = None
+        self.origin_screen = "gui1.py"
+        if len(sys.argv) > 1:
+            self.origin_screen = sys.argv[1]
 
         if not self._validar_sessao():
             messagebox.showerror("Erro de Sessão", "Sessão inválida ou expirada. Por favor, faça login novamente.")
@@ -254,10 +257,10 @@ class PreferencesApp(ctk.CTk):
     def voltar(self):
         self.destroy()
         try:
-            main_menu_path = str(OUTPUT_PATH / "gui1.py")
-            subprocess.Popen([sys.executable, main_menu_path])
+            origin_path = str(OUTPUT_PATH / self.origin_screen)
+            subprocess.Popen([sys.executable, origin_path])
         except Exception as e:
-            print(f"Erro ao tentar abrir a tela principal: {e}")
+            print(f"Erro ao tentar abrir a tela de origem '{self.origin_screen}': {e}")
 
 if __name__ == "__main__":
     conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
