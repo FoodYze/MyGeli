@@ -10,23 +10,40 @@ import json
 import os
 import google.generativeai as genai
 import threading
-from gui0 import GOOGLE_API_KEY
+from dotenv import load_dotenv # <--- NOVO IMPORT
+
 from session_manager import SessionManager
 
-# --- NOVOS IMPORTS PARA COMANDO DE VOZ ---
+# --- NOVOS IMPORTS PARA COMANDO DE VOZ E SEGURANÇA ---
 import speech_recognition as sr
 import re
 import time
-import traceback # <--- CORREÇÃO 1: IMPORTAÇÃO ADICIONADA
+import traceback
+import hashlib
+from datetime import datetime
+# -----------------------------------------------------
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv() 
+
+# --- SUAS CREDENCIAIS DE BANCO ---
+db_host = os.getenv('DB_HOST')
+db_name = os.getenv('DB_NAME')
+db_usuario = os.getenv('DB_USER')
+db_senha = os.getenv('DB_PASS')
+db_senha = "supfood0017admx"
+
+# --- RECUPERA A CHAVE API DO .ENV ---
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
 # --- CONFIGURAÇÃO ÚNICA DA API GEMINI ---
 try:
-    if GOOGLE_API_KEY and GOOGLE_API_KEY != "SUA_CHAVE_API_AQUI":
+    if GOOGLE_API_KEY:
         genai.configure(api_key=GOOGLE_API_KEY)
         model = genai.GenerativeModel('gemini-2.5-flash')
         print("Log: API do Gemini configurada com sucesso com o modelo 'gemini-2.5-flash'.")
     else:
-        print("AVISO: GOOGLE_API_KEY não encontrada ou é um placeholder. Funções de IA estarão desabilitadas.")
+        print("AVISO: GOOGLE_API_KEY não encontrada no arquivo .env. Funções de IA estarão desabilitadas.")
         model = None
 except Exception as e:
     print(f"AVISO: Não foi possível configurar a API do Gemini. Funções de IA estarão desabilitadas. Erro: {e}")
@@ -64,7 +81,6 @@ def get_nutritional_info_from_api(item_name):
         return None
 
 def conectar_mysql(host, database, user, password):
-    # (Função idêntica, sem mudanças)
     try:
         conexao = mysql.connector.connect(
             host=host,
@@ -83,14 +99,7 @@ def conectar_mysql(host, database, user, password):
             return conexao
     except Error as e:
         print(f"Log: Erro CRÍTICO ao conectar ao MySQL: {e}")
-        messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao banco de dados:\n{e}\n\nVerifique suas credenciais e se o servidor MySQL está rodando.")
         return None
-
-# --- SUAS CREDENCIAIS ---
-db_host = "localhost"
-db_name = "mygeli"
-db_usuario = "foodyzeadm"
-db_senha = "supfood0017admx"
 
 # --- CAMINHOS DOS ARQUIVOS ---
 OUTPUT_PATH = Path(__file__).parent
@@ -107,21 +116,25 @@ class InventoryApp(ctk.CTk):
         self.local_stock = {}
         self.voice_feedback_window = None
         
+        # --- LÓGICA DE SESSÃO COM TOKEN ---
         self.session_manager = SessionManager()
-        session_data = self.session_manager.get_session()
-        self.user_id = session_data.get("user_id")
-        self.user_first_name = session_data.get("first_name")
-        
-        if not self.user_id:
-            messagebox.showerror("Erro de Sessão", "Nenhum usuário logado. Por favor, feche esta janela e faça o login na tela principal.")
-            self.after(100, self.destroy)
-            return 
+        self.user_id = None
+        self.user_first_name = None
 
-        if not self.connection:
-            self.destroy()
+        # Verifica a sessão usando o token persistente
+        if not self._validar_sessao():
+            messagebox.showerror("Erro de Sessão", "Sessão inválida ou expirada. Por favor, faça login novamente.")
+            self.after(100, self.destroy) 
             return
+        # ---------------------------------------
+        
+        if not self.connection:
+            # Se a validação passou, mas a conexão caiu, tenta reconectar
+            self.connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+            if not self.connection:
+                self.destroy()
+                return
     
-        # (Resto do __init__ idêntico)
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         self.title("Estoque")
@@ -159,12 +172,52 @@ class InventoryApp(ctk.CTk):
         self.create_widgets()
         self.after(100, self.check_low_stock_on_startup)
 
+    # --- MÉTODO DE VALIDAÇÃO DE SESSÃO ---
+    def _validar_sessao(self):
+        """Verifica se o token local é válido no banco de dados."""
+        token_data = self.session_manager.get_token()
+        if not token_data: return False
+
+        selector = token_data.get("selector")
+        authenticator = token_data.get("authenticator")
+        if not selector or not authenticator: return False
+
+        try:
+            # Garante conexão se não existir
+            if not self.connection or not self.connection.is_connected():
+                 self.connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+                 if not self.connection: return False
+
+            cursor = self.connection.cursor(dictionary=True)
+            query = """
+                SELECT t.user_id, t.hashed_token, t.expires, u.nome 
+                FROM login_tokens t
+                JOIN usuarios u ON t.user_id = u.id
+                WHERE t.selector = %s
+            """
+            cursor.execute(query, (selector,))
+            record = cursor.fetchone()
+            cursor.close()
+
+            if not record: return False
+            if record['expires'] < datetime.now(): return False
+
+            hashed_auth_check = hashlib.sha256(authenticator.encode()).hexdigest()
+            if hashed_auth_check == record['hashed_token']:
+                self.user_id = record['user_id']
+                self.user_first_name = record['nome'].split(' ')[0]
+                print(f"Log (gui3): Acesso autorizado para {self.user_first_name} (ID: {self.user_id})")
+                return True
+            else:
+                return False
+        except Error as e:
+            print(f"Log (gui3): Erro ao validar sessão: {e}")
+            return False
+    # --------------------------------------------------
+
     # --- INÍCIO DA SEÇÃO DE COMANDO DE VOZ ---
-    # (Todas as funções de voz permanecem as mesmas, 
-    # pois elas dependem de _executar_lista_de_acoes_db, que será modificada)
     
     def _show_voice_feedback(self, message):
-        # (Função idêntica, sem mudanças)
         if self.voice_feedback_window is None or not self.voice_feedback_window.winfo_exists():
             self.voice_feedback_window = ctk.CTkToplevel(self)
             self.voice_feedback_window.title("Comando de Voz")
@@ -179,12 +232,10 @@ class InventoryApp(ctk.CTk):
         self.voice_feedback_window.update()
 
     def _close_voice_feedback(self, delay=2000):
-        # (Função idêntica, sem mudanças)
         if self.voice_feedback_window and self.voice_feedback_window.winfo_exists():
             self.after(delay, self.voice_feedback_window.destroy)
 
     def _start_recording(self, event):
-        # (Função idêntica, sem mudanças)
         self.audio_frames.clear()
         self.is_recording = True
         self._show_voice_feedback("Ouvindo... (solte para parar)")
@@ -194,7 +245,6 @@ class InventoryApp(ctk.CTk):
         self.recording_thread.start()
 
     def _record_loop(self):
-        # (Função idêntica, sem mudanças)
         mic = sr.Microphone()
         with mic as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=0.2)
@@ -208,7 +258,6 @@ class InventoryApp(ctk.CTk):
                     break
     
     def _stop_recording_and_process(self, event):
-        # (Função idêntica, sem mudanças)
         if self.voice_feedback_window and self.voice_feedback_window.winfo_exists():
             self.voice_feedback_window.unbind("<ButtonRelease-1>")
         if not self.is_recording: return
@@ -217,7 +266,6 @@ class InventoryApp(ctk.CTk):
         threading.Thread(target=self._process_audio_in_background, daemon=True).start()
 
     def _process_audio_in_background(self):
-        # (Função idêntica, sem mudanças)
         if self.recording_thread: self.recording_thread.join()
         if not self.audio_frames:
             self.after(0, self._show_voice_feedback, "Nenhum áudio gravado.")
@@ -249,7 +297,6 @@ class InventoryApp(ctk.CTk):
             print(f"Log (Voz): Erro na API do Google Speech Recognition; {e}")
 
     def _interpretar_comando_com_gemini(self, texto):
-        # (Função idêntica, sem mudanças)
         if not model:
             print("Log (Voz/Gemini): A API do Gemini não está configurada ou falhou ao inicializar.")
             return {"erro": "A IA não está configurada."}
@@ -293,12 +340,10 @@ class InventoryApp(ctk.CTk):
             return {"erro": "Falha na comunicação com a IA."}
 
     def _executar_acao_db(self, comando):
-        # (Função idêntica, sem mudanças)
         erros = self._executar_lista_de_acoes_db([comando], show_feedback=False)
         if erros:
             messagebox.showerror("Erro de Operação", "\n".join(erros))
 
-    # --- FUNÇÃO PRINCIPAL CORRIGIDA ---
     def _executar_lista_de_acoes_db(self, comandos, show_feedback=True):
         """Executa uma lista de ações no banco de dados em uma única transação."""
         erros = []
@@ -325,26 +370,13 @@ class InventoryApp(ctk.CTk):
                         else:
                             nutritional_data = get_nutritional_info_from_api(name) or {}
                             
-                            # --- CORREÇÃO 2: Lógica de Inserção Explícita ---
-                            # 1. Define as colunas dinâmicas (só de nutrição)
                             keys_nutricionais = ["valor_energetico_kcal", "acucares_totais_g", "acucares_adicionados_g", "carboidratos_g", "proteinas_g", "gorduras_totais_g", "gorduras_saturadas_g", "fibra_alimentar_g", "sodio_g"]
-                            
-                            # 2. Define as colunas estáticas (sempre presentes)
                             colunas_fixas = "nome_produto, quantidade_produto, tipo_volume, user_id"
-                            
-                            # 3. Define os valores estáticos (sempre presentes)
                             valores_fixos = (name, qty_base, unit_base, self.user_id)
-                            
-                            # 4. Monta a query
                             query = f"INSERT INTO produtos ({colunas_fixas}, {', '.join(keys_nutricionais)}) VALUES (%s, %s, %s, %s, {', '.join(['%s']*len(keys_nutricionais))})"
-                            
-                            # 5. Monta a tupla de valores
                             valores_nutricionais = tuple(nutritional_data.get(k) for k in keys_nutricionais)
-                            
                             values = valores_fixos + valores_nutricionais
-                            
                             cursor.execute(query, values)
-                            # --- FIM DA CORREÇÃO 2 ---
                             
                     elif acao == 'remover':
                         if not result:
@@ -364,8 +396,7 @@ class InventoryApp(ctk.CTk):
                 except Exception as item_error:
                     erros.append(f"Erro ao processar '{comando.get('item', 'item?')}': {item_error}")
                     print(f"ERRO no loop de item _executar_lista_de_acoes_db: {item_error}")
-                    traceback.print_exc() # Isso agora vai funcionar
-
+                    traceback.print_exc()
 
             self.connection.commit()
             cursor.close()
@@ -385,7 +416,7 @@ class InventoryApp(ctk.CTk):
         except Error as e:
             self.connection.rollback()
             print(f"ERRO de Banco de Dados em _executar_lista_de_acoes_db: {e}")
-            traceback.print_exc() # Isso agora vai funcionar
+            traceback.print_exc()
             if show_feedback:
                 self.after(0, self._show_voice_feedback, "Erro no banco de dados.")
                 self._close_voice_feedback(3000)
@@ -395,13 +426,11 @@ class InventoryApp(ctk.CTk):
     # --- FIM DA SEÇÃO DE COMANDO DE VOZ ---
 
     def _validate_numeric_input(self, value_if_allowed):
-        # (Função idêntica, sem mudanças)
         if value_if_allowed == "": return True
         try: float(value_if_allowed.replace(',', '.')); return True
         except ValueError: return False
 
     def open_history_window(self):
-        # (Função idêntica, sem mudanças)
         print("Abrindo a tela de histórico (gui_historico.py).")
         if self.connection and self.connection.is_connected():
             self.connection.close()
@@ -413,7 +442,6 @@ class InventoryApp(ctk.CTk):
             messagebox.showerror("Erro", f"Ocorreu um erro ao tentar abrir gui_historico.py: {e}")
     
     def _show_nutritional_info(self, item_name):
-        # (Função idêntica, sem mudanças)
         try:
             cursor = self.connection.cursor(dictionary=True)
             dados_foram_atualizados = self._try_update_nutritional_info_if_missing(item_name, cursor, self.user_id)
@@ -446,7 +474,6 @@ class InventoryApp(ctk.CTk):
         dialog.after(100, dialog.lift)
     
     def _try_update_nutritional_info_if_missing(self, name, cursor, user_id):
-        # (Função idêntica, sem mudanças)
         try:
             campos = "valor_energetico_kcal, acucares_totais_g, acucares_adicionados_g, carboidratos_g, proteinas_g, gorduras_totais_g, gorduras_saturadas_g, fibra_alimentar_g, sodio_g"
             cursor.execute(f"SELECT {campos} FROM produtos WHERE nome_produto = %s AND user_id = %s", (name, user_id))
@@ -466,7 +493,6 @@ class InventoryApp(ctk.CTk):
         return False
 
     def converter_para_base(self, quantidade, unidade):
-        # (Função idêntica, sem mudanças)
         unidade_lower = unidade.lower(); qtd = float(str(quantidade).replace(',', '.'))
         if 'kg' in unidade_lower or 'quilos' in unidade_lower: return (qtd * 1000, 'Gramas')
         if 'g' in unidade_lower or 'gramas' in unidade_lower: return (qtd, 'Gramas')
@@ -476,14 +502,12 @@ class InventoryApp(ctk.CTk):
         return (qtd, unidade.capitalize())
     
     def formatar_exibicao(self, quantidade, unidade):
-        # (Função idêntica, sem mudanças)
         qtd_float = float(quantidade)
         if unidade == 'Gramas' and qtd_float >= 1000: return ("{:g}".format(qtd_float / 1000).replace('.', ','), "Kg")
         if unidade == 'Mililitros' and qtd_float >= 1000: return ("{:g}".format(qtd_float / 1000).replace('.', ','), "L")
         return ("{:g}".format(qtd_float).replace('.', ','), unidade)
     
     def go_to_gui1(self):
-        # (Função idêntica, sem mudanças)
         print("Botão Voltar clicado! Voltando para a tela inicial (gui1.py).")
         if self.connection and self.connection.is_connected(): self.connection.close(); print("Log: Conexão com o BD fechada.")
         self.destroy()
@@ -491,7 +515,6 @@ class InventoryApp(ctk.CTk):
         except Exception as e: messagebox.showerror("Erro", f"Ocorreu um erro ao tentar abrir gui1.py: {e}")
 
     def load_stock_from_db(self, search_term=""):
-        # (Função idêntica, sem mudanças)
         try:
             if not self.connection.is_connected(): self.connection.reconnect()
             cursor = self.connection.cursor(dictionary=True)
@@ -508,11 +531,9 @@ class InventoryApp(ctk.CTk):
             messagebox.showerror("Erro de Banco de Dados", f"Falha ao carregar o estoque: {e}"); self.local_stock = {}
 
     def _on_search_typing(self, event=None): 
-        # (Função idêntica, sem mudanças)
         self._refresh_item_list(self.search_entry.get().strip())
 
     def create_widgets(self):
-        # (Função idêntica, sem mudanças)
         self.grid_rowconfigure(0, weight=0); self.grid_rowconfigure(1, weight=1); self.grid_columnconfigure(0, weight=1)
         self.header_frame = ctk.CTkFrame(self, height=80, corner_radius=0, fg_color="#0084FF"); self.header_frame.grid(row=0, column=0, sticky="nsew"); self.header_frame.grid_propagate(False); self.header_frame.grid_columnconfigure(0, weight=0); self.header_frame.grid_columnconfigure(1, weight=1)
         try:
@@ -538,7 +559,6 @@ class InventoryApp(ctk.CTk):
         self._refresh_item_list()
 
     def _refresh_item_list(self, search_term=""):
-        # (Função idêntica, sem mudanças)
         self.load_stock_from_db(search_term)
         for widget in self.items_container.winfo_children(): widget.destroy()
         if not self.local_stock:
@@ -549,7 +569,6 @@ class InventoryApp(ctk.CTk):
         self.items_container.update_idletasks()
 
     def _add_item_widget(self, name, qty, unit, row_index):
-        # (Função idêntica, sem mudanças)
         is_low_stock = False
         try:
             numeric_qty = float(qty)
@@ -568,11 +587,9 @@ class InventoryApp(ctk.CTk):
             widget.bind("<Button-1>", lambda event, n=name: self._show_nutritional_info(n))
 
     def _center_dialog(self, dialog, width, height):
-        # (Função idêntica, sem mudanças)
         self.update_idletasks(); parent_x = self.winfo_x(); parent_y = self.winfo_y(); parent_width = self.winfo_width(); parent_height = self.winfo_height(); center_x = parent_x + (parent_width // 2) - (width // 2); center_y = parent_y + (parent_height // 2) - (height // 2); dialog.geometry(f"{width}x{height}+{center_x}+{center_y}")
 
     def check_low_stock_on_startup(self):
-        # (Função idêntica, sem mudanças)
         low_stock_items = []
         for name, data in self.local_stock.items():
             try:
@@ -584,7 +601,6 @@ class InventoryApp(ctk.CTk):
         if low_stock_items: messagebox.showwarning("Alerta de Estoque Baixo", "Itens com baixo estoque:\n\n" + "\n".join(low_stock_items))
 
     def open_add_item_dialog(self):
-        # (Função idêntica, sem mudanças)
         self._refresh_item_list(); item_names = list(self.local_stock.keys())
         dialog = ctk.CTkToplevel(self); dialog.title("Adicionar Item"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, 360, 320)
         form_frame = ctk.CTkFrame(dialog, fg_color="transparent"); form_frame.pack(fill="both", expand=True, padx=20, pady=15); form_frame.grid_columnconfigure(1, weight=1)
@@ -613,7 +629,6 @@ class InventoryApp(ctk.CTk):
         nome_cb.focus_set()
 
     def open_remove_item_dialog(self):
-        # (Função idêntica, sem mudanças)
         self._refresh_item_list()
         if not self.local_stock: messagebox.showinfo("Estoque Vazio", "Não há itens para remover."); return
         dialog = ctk.CTkToplevel(self); dialog.title("Remover Itens"); dialog.resizable(False, False); dialog.transient(self); dialog.grab_set(); dialog.configure(fg_color="#FFFFFF"); self._center_dialog(dialog, 360, 280)
@@ -648,3 +663,5 @@ if __name__ == "__main__":
         if app.connection and app.connection.is_connected():
             app.connection.close()
             print("Log: Conexão com o BD fechada ao finalizar o app.")
+    else:
+        print("ERRO: Não foi possível iniciar o aplicativo. Verifique a conexão com o banco de dados.")

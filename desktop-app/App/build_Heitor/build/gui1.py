@@ -2,23 +2,24 @@ import customtkinter as ctk
 import subprocess
 import sys
 import mysql.connector
-from mysql.connector import Error, IntegrityError # Importa IntegrityError
+from mysql.connector import Error, IntegrityError
 from pathlib import Path
 from PIL import Image, ImageSequence
-
 from werkzeug.security import check_password_hash, generate_password_hash
-from session_manager import SessionManager
 from tkinter import messagebox
-import re # Para validação Regex de email e nome
-
+import re
 import socket
 import hashlib
+import os
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+from session_manager import SessionManager
+
+load_dotenv()
 
 # --- Conexão com Banco de Dados ---
 def conectar_mysql(host, database, user, password):
-    """
-    Tenta conectar ao banco de dados MySQL. Retorna a conexão ou None.
-    """
     try:
         conexao = mysql.connector.connect(host=host, database=database, user=user, password=password)
         if conexao.is_connected():
@@ -28,9 +29,17 @@ def conectar_mysql(host, database, user, password):
         print(f"Log: Erro ao conectar ao MySQL: {e}")
         return None
 
+# --- NOVA FUNÇÃO GLOBAL (NECESSÁRIA PARA O LOG) ---
+def _get_hashed_ip():
+    """Obtém o IP local e o criptografa (hash SHA-256)."""
+    try:
+        ip_address = socket.gethostbyname(socket.gethostname())
+    except Exception:
+        ip_address = '127.0.0.1'
+    return hashlib.sha256(ip_address.encode('utf-8')).hexdigest()
+
 # --- Navegação entre Telas ---
 def abrir_gui(nome_arquivo):
-    """Fecha a janela atual e abre um novo script de GUI."""
     if app:
         app.destroy()
     try:
@@ -38,26 +47,9 @@ def abrir_gui(nome_arquivo):
         subprocess.Popen([sys.executable, caminho_script])
     except Exception as e:
         print(f"Erro ao tentar abrir {nome_arquivo}: {e}")
-        
-def _get_hashed_ip():
-    """Obtém o IP local e o criptografa (hash SHA-256) como no Flask."""
-    try:
-        # Tenta pegar o IP local da máquina
-        ip_address = socket.gethostbyname(socket.gethostname())
-    except Exception:
-        # Fallback se não conseguir (ex: sem rede)
-        ip_address = '127.0.0.1'
-    
-    # Criptografa (hash) o IP
-    hashed_ip = hashlib.sha256(ip_address.encode('utf-8')).hexdigest()
-    return hashed_ip
 
 # --- Classe Principal da Aplicação ---
 class App(ctk.CTk):
-    """
-    A tela principal (menu) do aplicativo MyGeli.
-    """
-    # --- Constantes de Estilo para Padronização ---
     WINDOW_WIDTH = 400
     WINDOW_HEIGHT = 650
     BG_COLOR = "#F5F5F5"
@@ -67,33 +59,31 @@ class App(ctk.CTk):
     BUTTON_TEXT_COLOR = "white"
     CARD_COLOR = "#FFFFFF"
     CARD_BORDER_COLOR = "#E0E0E0"
-    BUTTON_DISABLED_COLOR = "#B0B0B0" # Um tom de cinza
-    BUTTON_DANGER_COLOR = "#D32F2F" # Vermelho
-    BUTTON_DANGER_HOVER_COLOR = "#B71C1C" # Vermelho escuro
+    BUTTON_DISABLED_COLOR = "#B0B0B0"
+    BUTTON_DANGER_COLOR = "#D32F2F"
+    BUTTON_DANGER_HOVER_COLOR = "#B71C1C"
 
     def __init__(self, db_connection):
         super().__init__()
-        
+       
         self.db_connection = db_connection
-        self.gif_frames = []
-        self.current_frame_index = 0
-        
         self.session_manager = SessionManager()
-        session_data = self.session_manager.get_session()
-        
-        self.user_id = session_data.get("user_id")
-        self.user_first_name = session_data.get("first_name")
-        
-        self._validar_sessao_no_db()
+       
+        self.user_id = None
+        self.user_first_name = None
+
+        # Tenta fazer login automático via Token
+        if self._tentar_login_automatico():
+             print("Log: Sessão restaurada via Token Persistente.")
+        else:
+             print("Log: Nenhuma sessão válida encontrada.")
 
         self._configurar_janela()
         self._criar_fontes()
         self._criar_widgets()
-        
         self._atualizar_estado_login()
 
     def _configurar_janela(self):
-        # (Função idêntica, sem mudanças)
         self.title("MyGeli")
         ctk.set_appearance_mode("light")
         screen_width = self.winfo_screenwidth()
@@ -106,7 +96,6 @@ class App(ctk.CTk):
         self.configure(fg_color=self.BG_COLOR)
 
     def _criar_fontes(self):
-        # --- VERSÃO CORRIGIDA (todas as fontes) ---
         self.large_font = ctk.CTkFont("Poppins Bold", 28)
         self.medium_font = ctk.CTkFont("Poppins Medium", 18)
         self.small_font = ctk.CTkFont("Poppins Light", 14)
@@ -115,9 +104,7 @@ class App(ctk.CTk):
         self.small_light_font = ctk.CTkFont("Poppins Light", 12)
         self.header_name_font = ctk.CTkFont("Poppins SemiBold", 16)
 
-
     def _criar_widgets(self):
-        # (Função idêntica, sem mudanças)
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -125,280 +112,268 @@ class App(ctk.CTk):
         header_frame.grid(row=0, column=0, sticky="new")
         header_frame.grid_propagate(False)
         assets_path = Path(__file__).parent / "assets" / "frame1"
-        user_icon_image = ctk.CTkImage(Image.open(assets_path / "user_icon.png").resize((32, 32), Image.LANCZOS), size=(40, 40))
+        try:
+            user_icon_image = ctk.CTkImage(Image.open(assets_path / "user_icon.png").resize((32, 32), Image.LANCZOS), size=(40, 40))
+            options_image = ctk.CTkImage(Image.open(assets_path / "options.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
+            calendario_image = ctk.CTkImage(Image.open(assets_path / "calendario.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
+            original_logo_image = Image.open(assets_path / "MyGeli.png")
+            original_width, original_height = original_logo_image.size
+            target_width = 280
+            aspect_ratio = original_height / original_width
+            target_height = int(target_width * aspect_ratio)
+            resized_logo = original_logo_image.resize((target_width, target_height), Image.LANCZOS)
+            logo_image = ctk.CTkImage(light_image=resized_logo, size=(target_width, target_height))
+        except Exception as e:
+            print(f"Erro ao carregar imagens: {e}")
+            user_icon_image = None
+            options_image = None
+            calendario_image = None
+            logo_image = None
+
         user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._acao_usuario)
         user_button.pack(side="left", padx=10, pady=10)
         self.user_name_label = ctk.CTkLabel(header_frame, text="", font=self.header_name_font, text_color=self.BUTTON_TEXT_COLOR)
-        options_image = ctk.CTkImage(Image.open(assets_path / "options.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
         options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
         options_button.pack(side="right", padx=5, pady=5)
-        calendario_image = ctk.CTkImage(Image.open(assets_path / "calendario.png").resize((32, 32), Image.LANCZOS), size=(30, 30))
         calendario_button = ctk.CTkButton(header_frame, text="", image=calendario_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=lambda: self._abrir_gui_com_verificacao("gui5_planejamento.py"))
         calendario_button.pack(side="right", padx=5, pady=5)
+       
         main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.grid(row=1, column=0, sticky="nsew")
         content_block_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         content_block_frame.pack(side="top", fill="x", pady=(50, 0))
-        logo_completo_path = assets_path / "MyGeli.png"
-        original_logo_image = Image.open(logo_completo_path)
-        original_width, original_height = original_logo_image.size
-        target_width = 280
-        aspect_ratio = original_height / original_width
-        target_height = int(target_width * aspect_ratio)
-        resized_logo = original_logo_image.resize((target_width, target_height), Image.LANCZOS)
-        logo_image = ctk.CTkImage(light_image=resized_logo, size=(target_width, target_height))
-        ctk.CTkLabel(content_block_frame, image=logo_image, text="").pack(pady=(0, 30))
+       
+        if logo_image:
+             ctk.CTkLabel(content_block_frame, image=logo_image, text="").pack(pady=(0, 30))
+        else:
+             ctk.CTkLabel(content_block_frame, text="MyGeli", font=self.large_font).pack(pady=(0, 30))
+
         buttons_frame = ctk.CTkFrame(content_block_frame, fg_color=self.CARD_COLOR, corner_radius=12, border_color=self.CARD_BORDER_COLOR, border_width=1)
         buttons_frame.pack(padx=30, fill="x")
         buttons_frame.grid_columnconfigure(0, weight=1)
-        self.btn_geli = ctk.CTkButton(buttons_frame, text="FALAR COM GELI", command=lambda: self._abrir_gui_com_verificacao("gui0.py"), 
-                                        height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
+        self.btn_geli = ctk.CTkButton(buttons_frame, text="FALAR COM GELI", command=lambda: self._abrir_gui_com_verificacao("gui0.py"),
+                                      height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_geli.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
-        self.btn_receitas = ctk.CTkButton(buttons_frame, text="VER RECEITAS", command=lambda: self._abrir_gui_com_verificacao("gui2.py"), 
-                                        height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
+        self.btn_receitas = ctk.CTkButton(buttons_frame, text="VER RECEITAS", command=lambda: self._abrir_gui_com_verificacao("gui2.py"),
+                                      height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_receitas.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
-        self.btn_estoque = ctk.CTkButton(buttons_frame, text="GERENCIAR ESTOQUE", command=lambda: self._abrir_gui_com_verificacao("gui3.py"), 
-                                        height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
+        self.btn_estoque = ctk.CTkButton(buttons_frame, text="GERENCIAR ESTOQUE", command=lambda: self._abrir_gui_com_verificacao("gui3.py"),
+                                      height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_estoque.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
-        self.btn_compras = ctk.CTkButton(buttons_frame, text="LISTA DE COMPRAS", command=lambda: self._abrir_gui_com_verificacao("gui4.py"), 
-                                        height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
+        self.btn_compras = ctk.CTkButton(buttons_frame, text="LISTA DE COMPRAS", command=lambda: self._abrir_gui_com_verificacao("gui4.py"),
+                                      height=55, font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         self.btn_compras.grid(row=3, column=0, padx=20, pady=(10, 20), sticky="ew")
 
+    # --- MÉTODO DE LOG ADICIONADO (CORREÇÃO) ---
+    def _registrar_log(self, user_id, action, status):
+        """Registra uma ação na tabela 'log'."""
+        if not self.db_connection or not self.db_connection.is_connected():
+            return
+
+        cursor = None
+        try:
+            hashed_ip = _get_hashed_ip()
+            cursor = self.db_connection.cursor()
+            query = "INSERT INTO log (id_user, action, status, ip_address) VALUES (%s, %s, %s, %s)"
+            cursor.execute(query, (user_id, action, status, hashed_ip))
+            self.db_connection.commit()
+            print(f"Log: Ação '{action}' registrada para user_id {user_id}.")
+        except Error as e:
+            print(f"Log: ERRO ao registrar log: {e}")
+            # Não faz rollback aqui para não atrapalhar a transação principal se houver
+        finally:
+            if cursor: cursor.close()
+
+    # --- MÉTODOS DE PERSISTÊNCIA ---
+    def _create_remember_token(self):
+        selector = os.urandom(16).hex()
+        authenticator = os.urandom(32).hex()
+        hashed_authenticator = hashlib.sha256(authenticator.encode()).hexdigest()
+        return selector, authenticator, hashed_authenticator
+
+    def _save_remember_token_db(self, user_id, selector, hashed_authenticator):
+        expires_dt = datetime.now() + timedelta(days=30)
+        try:
+            cursor = self.db_connection.cursor()
+            cursor.execute("DELETE FROM login_tokens WHERE user_id = %s", (user_id,))
+            query = "INSERT INTO login_tokens (user_id, selector, hashed_token, expires) VALUES (%s, %s, %s, %s)"
+            cursor.execute(query, (user_id, selector, hashed_authenticator, expires_dt))
+            self.db_connection.commit()
+            cursor.close()
+            return True
+        except Error as e:
+            print(f"Log: Erro ao salvar token no BD: {e}")
+            return False
+
+    def _tentar_login_automatico(self):
+        token_data = self.session_manager.get_token()
+        if not token_data: return False
+
+        selector = token_data.get("selector")
+        authenticator = token_data.get("authenticator")
+        if not selector or not authenticator: return False
+
+        try:
+            if not self.db_connection or not self.db_connection.is_connected():
+                 self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+
+            cursor = self.db_connection.cursor(dictionary=True)
+            query = """
+                SELECT t.token_id, t.user_id, t.hashed_token, t.expires, u.nome
+                FROM login_tokens t
+                JOIN usuarios u ON t.user_id = u.id
+                WHERE t.selector = %s
+            """
+            cursor.execute(query, (selector,))
+            record = cursor.fetchone()
+            cursor.close()
+
+            if not record:
+                self.session_manager.clear_session()
+                return False
+
+            if record['expires'] < datetime.now():
+                self.session_manager.clear_session()
+                return False
+
+            hashed_auth_check = hashlib.sha256(authenticator.encode()).hexdigest()
+            if hashed_auth_check == record['hashed_token']:
+                self.user_id = record['user_id']
+                self.user_first_name = record['nome'].split(' ')[0]
+                return True
+            else:
+                self.session_manager.clear_session()
+                return False
+
+        except Error as e:
+            print(f"Log: Erro no login automático: {e}")
+            return False
+
     def _abrir_gui_com_verificacao(self, nome_arquivo):
-        # (Função idêntica, sem mudanças)
         if self.user_id:
             abrir_gui(nome_arquivo)
         else:
-            messagebox.showwarning("Acesso Restrito", 
-                                   "Entre em uma conta para utilizar a ferramenta!")
-    
-    # --- MODIFICADO: Esta função agora abre a janela de OPÇÕES ---
+            messagebox.showwarning("Acesso Restrito", "Entre em uma conta para utilizar a ferramenta!")
+   
     def _acao_usuario(self):
-        """
-        Verifica se o usuário está logado.
-        Se sim, abre a janela de opções. Se não, abre a tela de login.
-        """
         if self.user_id:
-            # --- ABRE A NOVA JANELA DE OPÇÕES ---
             if hasattr(self, 'opcoes_window') and self.opcoes_window.winfo_exists():
                 self.opcoes_window.focus()
                 return
 
             self.opcoes_window = ctk.CTkToplevel(self)
             self.opcoes_window.title("Opções da Conta")
-            self.opcoes_window.geometry("300x200") # Tamanho da nova janela
+            self.opcoes_window.geometry("300x200")
             self.opcoes_window.transient(self)
             self.opcoes_window.grab_set()
             self.opcoes_window.resizable(False, False)
-            
-            # Centralizar
-            x_app = self.winfo_x()
-            y_app = self.winfo_y()
-            w_app = self.winfo_width()
-            h_app = self.winfo_height()
-            x_opcoes = x_app + (w_app // 2) - (300 // 2)
-            y_opcoes = y_app + (h_app // 2) - (200 // 2)
-            self.opcoes_window.geometry(f"300x200+{x_opcoes}+{y_opcoes}")
+           
+            self._centralizar_janela(self.opcoes_window, 300, 200)
 
             ctk.CTkLabel(self.opcoes_window, text=f"Opções para {self.user_first_name}", font=self.medium_font).pack(pady=(20, 15))
 
-            # Botão Sair
             btn_sair = ctk.CTkButton(self.opcoes_window, text="Sair da Conta",
-                                     command=self._confirmar_logout, 
+                                     command=self._confirmar_logout,
                                      font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
             btn_sair.pack(pady=10, padx=20, fill="x")
 
-            # Botão Excluir
             btn_excluir = ctk.CTkButton(self.opcoes_window, text="Excluir Conta",
-                                        command=self._confirmar_exclusao, 
-                                        font=self.button_font, fg_color=self.BUTTON_DANGER_COLOR, hover_color=self.BUTTON_DANGER_HOVER_COLOR) # Cor de perigo
+                                        command=self._confirmar_exclusao,
+                                        font=self.button_font, fg_color=self.BUTTON_DANGER_COLOR, hover_color=self.BUTTON_DANGER_HOVER_COLOR)
             btn_excluir.pack(pady=10, padx=20, fill="x")
-            
+           
         else:
-            # Usuário não está logado, abrir tela de login
             self._abrir_tela_login()
 
-    # --- ADICIONADO: Funções de Logout e Exclusão ---
-    
-    def _validar_sessao_no_db(self):
-        """
-        Verifica se o user_id da sessão ainda existe no banco de dados.
-        Se não existir (ex: usuário foi excluído), limpa a sessão.
-        """
-        if not self.user_id:
-            return  # Nenhuma sessão para validar
-
-        # Se não há conexão no início, não é possível validar.
-        # É mais seguro deslogar o usuário.
-        if not self.db_connection or not self.db_connection.is_connected():
-            print("Log: Sessão não pode ser validada (BD offline). Limpando.")
-            self.user_id = None
-            self.user_first_name = None
-            self.session_manager.clear_session()
-            return
-
-        try:
-            cursor = self.db_connection.cursor(dictionary=True)
-            cursor.execute("SELECT id, nome FROM usuarios WHERE id = %s", (self.user_id,))
-            user = cursor.fetchone()
-            cursor.close()
-
-            if not user:
-                # O usuário NÃO existe mais no DB (o seu caso do user 5!)
-                print(f"Log: Usuário da sessão (ID: {self.user_id}) não encontrado no DB. Limpando sessão.")
-                self.user_id = None
-                self.user_first_name = None
-                self.session_manager.clear_session()
-            else:
-                # O usuário existe. Apenas confirma os dados.
-                # Atualiza o nome caso tenha mudado no banco
-                self.user_first_name = user['nome'].split(' ')[0]
-                print(f"Log: Sessão (ID: {self.user_id}) validada com sucesso no DB.")
-
-        except Error as e:
-            print(f"Log: Erro de MySQL ao validar sessão: {e}")
-            # Em caso de erro de DB, é mais seguro deslogar.
-            self.user_id = None
-            self.user_first_name = None
-            self.session_manager.clear_session()
-            
-    def _registrar_log(self, user_id, action, status):
-        """
-        Registra uma ação na tabela 'log' do banco de dados.
-        """
-        if not self.db_connection or not self.db_connection.is_connected():
-            print(f"Log: Conexão de BD ausente. Log de '{action}' não registrado.")
-            return
-
-        cursor = None
-        try:
-            hashed_ip = _get_hashed_ip() # Chama a função global
-            
-            cursor = self.db_connection.cursor()
-            query = """
-                INSERT INTO log (id_user, action, status, ip_address) 
-                VALUES (%s, %s, %s, %s)
-            """
-            cursor.execute(query, (user_id, action, status, hashed_ip))
-            self.db_connection.commit()
-            print(f"Log: Ação '{action}' registrada para user_id {user_id}.")
-
-        except Error as e:
-            print(f"Log: ERRO ao registrar log: {e}")
-            if self.db_connection:
-                self.db_connection.rollback()
-        finally:
-            if cursor:
-                cursor.close()
+    def _centralizar_janela(self, janela, largura, altura):
+        x_app = self.winfo_x()
+        y_app = self.winfo_y()
+        w_app = self.winfo_width()
+        h_app = self.winfo_height()
+        x_pos = x_app + (w_app // 2) - (largura // 2)
+        y_pos = y_app + (h_app // 2) - (altura // 2)
+        janela.geometry(f"{largura}x{altura}+{x_pos}+{y_pos}")
 
     def _confirmar_logout(self):
-        """Pede confirmação para sair."""
-        # Tira o foco da janela de opções para o messagebox aparecer na frente
-        self.opcoes_window.grab_release() 
+        self.opcoes_window.grab_release()
         resposta = messagebox.askyesno("Sair", "Tem certeza que deseja sair da sua conta?", parent=self.opcoes_window)
-        if resposta: # "Sim"
+        if resposta:
             self._executar_logout()
         else:
-            # Devolve o foco para a janela de opções
-            self.opcoes_window.grab_set() 
+            self.opcoes_window.grab_set()
             self.opcoes_window.focus()
 
     def _executar_logout(self):
-        """Limpa a sessão e atualiza a GUI."""
         if self.user_id:
-            self._registrar_log(self.user_id, 'Logout', 'Success')
-        
+             self._registrar_log(self.user_id, 'Logout', 'Success')
+             
+             try:
+                 cursor = self.db_connection.cursor()
+                 cursor.execute("DELETE FROM login_tokens WHERE user_id = %s", (self.user_id,))
+                 self.db_connection.commit()
+                 cursor.close()
+             except Error as e:
+                 print(f"Log: Erro ao limpar token do BD: {e}")
+
         if hasattr(self, 'opcoes_window') and self.opcoes_window.winfo_exists():
             self.opcoes_window.destroy()
-            
+           
         self.session_manager.clear_session()
         self.user_id = None
         self.user_first_name = None
         self._atualizar_estado_login()
 
     def _confirmar_exclusao(self):
-        """Pede a confirmação final antes de excluir a conta."""
         self.opcoes_window.grab_release()
-        resposta = messagebox.askyesno("EXCLUIR CONTA", 
-                                       f"ATENÇÃO, {self.user_first_name}!\n\nVocê tem CERTEZA?\n\nEsta ação é IRREVERSÍVEL e apagará TODOS os seus dados (estoque, receitas, etc.) permanentemente.", 
+        resposta = messagebox.askyesno("EXCLUIR CONTA",
+                                       f"ATENÇÃO, {self.user_first_name}!\n\nVocê tem CERTEZA?\n\nEsta ação é IRREVERSÍVEL e apagará TODOS os seus dados (estoque, receitas, etc.) permanentemente.",
                                        icon="warning", parent=self.opcoes_window)
         if resposta:
             self._executar_exclusao_conta()
         else:
             self.opcoes_window.grab_set()
             self.opcoes_window.focus()
-            
+           
     def _executar_exclusao_conta(self):
-        """Executa os comandos SQL para apagar todos os dados do usuário."""
         if not self.user_id:
-            messagebox.showerror("Erro de Sessão", "Sessão não encontrada. Não é possível excluir a conta.", parent=self)
-            return
+            messagebox.showerror("Erro de Sessão", "Sessão não encontrada.", parent=self); return
 
         if not self.db_connection or not self.db_connection.is_connected():
-            messagebox.showerror("Erro de Conexão", "Erro de conexão com o banco. Tente novamente.", parent=self)
+            messagebox.showerror("Erro de Conexão", "Erro de conexão com o banco.", parent=self)
             self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
             if not self.db_connection: return
 
-        cursor = None # Define o cursor como None fora do try
+        cursor = None
         try:
-            print(f"Log: EXCLUINDO todos os dados do usuário {self.user_id}...")
             cursor = self.db_connection.cursor()
-            
-            # 1. Excluir dados dependentes (FK)
-            # (Adicione outras tabelas aqui se elas dependerem do user_id)
+            # FKs com CASCADE cuidarão do resto, mas para segurança:
             cursor.execute("DELETE FROM produtos WHERE user_id = %s", (self.user_id,))
-            print(f"Log: {cursor.rowcount} produtos excluídos.")
-            
             cursor.execute("DELETE FROM receitas WHERE idusuario = %s", (self.user_id,))
-            print(f"Log: {cursor.rowcount} receitas excluídas.")
-            
             cursor.execute("DELETE FROM login_tokens WHERE user_id = %s", (self.user_id,))
-            print(f"Log: {cursor.rowcount} tokens de login excluídos.")
-
-            # 2. Finalmente, excluir o usuário
             cursor.execute("DELETE FROM usuarios WHERE id = %s", (self.user_id,))
-            print(f"Log: {cursor.rowcount} usuário excluído.")
-
             self.db_connection.commit()
-            
+           
             messagebox.showinfo("Conta Excluída", "Sua conta foi excluída permanentemente.")
-            
-            # Faz o logout para limpar a UI
+            # Logout após exclusão
             self._executar_logout()
 
         except Error as e:
             self.db_connection.rollback()
-            messagebox.showerror("Erro no Banco de Dados", f"Não foi possível excluir sua conta:\n{e}", parent=self)
-            print(f"Log: Erro de MySQL ao excluir conta: {e}")
+            messagebox.showerror("Erro no Banco de Dados", f"Falha ao excluir conta:\n{e}", parent=self)
         finally:
-            # --- CORREÇÃO DO ERRO ---
-            # Apenas fechamos o cursor se ele foi criado com sucesso
-            if cursor:
-                cursor.close()
-    
-    # --- FIM DAS NOVAS FUNÇÕES ---
-
+            if cursor: cursor.close()
+   
     def _abrir_tela_login(self):
-        # --- VERSÃO CORRIGIDA (altura da janela e pady) ---
         if hasattr(self, 'login_window') and self.login_window.winfo_exists():
-            self.login_window.focus()
-            return
-            
+            self.login_window.focus(); return
+           
         self.login_window = ctk.CTkToplevel(self)
         self.login_window.title("Login MyGeli")
-        self.login_window.geometry("350x350") # <-- CORRIGIDO
         self.login_window.transient(self)
         self.login_window.grab_set()
         self.login_window.resizable(False, False)
-        
-        x_app = self.winfo_x()
-        y_app = self.winfo_y()
-        w_app = self.winfo_width()
-        h_app = self.winfo_height()
-        x_login = x_app + (w_app // 2) - (350 // 2)
-        y_login = y_app + (h_app // 2) - (350 // 2) # <-- CORRIGIDO
-        self.login_window.geometry(f"350x350+{x_login}+{y_login}") # <-- CORRIGIDO
-        
+        self._centralizar_janela(self.login_window, 350, 350)
+       
         ctk.CTkLabel(self.login_window, text="Login", font=self.large_font).pack(pady=(20, 10))
         ctk.CTkLabel(self.login_window, text="E-mail:", font=self.small_font, anchor="w").pack(fill="x", padx=40)
         email_entry = ctk.CTkEntry(self.login_window, width=270, height=35)
@@ -408,203 +383,144 @@ class App(ctk.CTk):
         senha_entry.pack(pady=(0, 10))
         error_label = ctk.CTkLabel(self.login_window, text="", text_color="red", font=self.small_font)
         error_label.pack()
-        
+       
         ctk.CTkButton(self.login_window, text="Entrar", width=270, height=40, font=self.button_font,
-                      command=lambda: self._executar_login(email_entry, senha_entry, error_label)
-                      ).pack(pady=(10, 5)) # <-- CORRIGIDO
-                      
+                      command=lambda: self._executar_login(email_entry, senha_entry, error_label)).pack(pady=(10, 5))
+                     
         link_cadastro = ctk.CTkLabel(self.login_window, text="Não tem uma conta? Crie uma.", text_color="#0066CC",
-                                       font=self.link_font, cursor="hand2")
-        link_cadastro.pack(pady=(5, 10)) # <-- CORRIGIDO
+                                     font=self.link_font, cursor="hand2")
+        link_cadastro.pack(pady=(5, 10))
         link_cadastro.bind("<Button-1>", lambda e: self._abrir_tela_cadastro())
 
     def _executar_login(self, email_entry, senha_entry, error_label):
-        # (Função idêntica, sem mudanças)
         email = email_entry.get().strip()
         senha = senha_entry.get()
         if not email or not senha:
-            error_label.configure(text="Preencha todos os campos.")
-            return
+            error_label.configure(text="Preencha todos os campos."); return
+       
         if not self.db_connection or not self.db_connection.is_connected():
-            error_label.configure(text="Erro de conexão com o banco.")
-            self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
-            return
+            error_label.configure(text="Erro de conexão."); self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha); return
+           
         try:
             cursor = self.db_connection.cursor(dictionary=True)
-            query = "SELECT id, nome, email, senha FROM usuarios WHERE email = %s"
-            cursor.execute(query, (email,))
+            cursor.execute("SELECT id, nome, email, senha FROM usuarios WHERE email = %s", (email,))
             user = cursor.fetchone()
             cursor.close()
+           
             if not user:
-                error_label.configure(text="E-mail incorreto! Tente novamente.")
+                error_label.configure(text="E-mail incorreto!")
                 return
             if not check_password_hash(user['senha'], senha):
-                error_label.configure(text="Senha incorreta! Tente novamente.")
-                self._registrar_log(user['id'], 'Login', 'Failure')
+                error_label.configure(text="Senha incorreta!")
+                self._registrar_log(user['id'], 'Login', 'Failure') # Log de falha
                 return
-            
-            self._registrar_log(user['id'], 'Login', 'Success')
-            
+           
             self.user_id = user['id']
-            full_name = user['nome']
-            self.user_first_name = full_name.split(' ')[0]
-            self.session_manager.save_session(self.user_id, self.user_first_name)
+            self.user_first_name = user['nome'].split(' ')[0]
+
+            # Cria e Salva Tokens
+            selector, authenticator, hashed_authenticator = self._create_remember_token()
+            if self._save_remember_token_db(self.user_id, selector, hashed_authenticator):
+                self.session_manager.save_token(selector, authenticator)
+           
+            self._registrar_log(self.user_id, 'Login', 'Success') # Log de sucesso
+
             self._atualizar_estado_login()
             self.login_window.destroy()
         except Error as e:
-            error_label.configure(text=f"Erro de banco: {e}")
-            print(f"Log: Erro de MySQL em _executar_login: {e}")
+            error_label.configure(text=f"Erro: {e}")
 
     def _atualizar_estado_login(self):
-        # (Função idêntica, sem mudanças)
         if self.user_id and self.user_first_name:
             print(f"Log: Usuário {self.user_id} ({self.user_first_name}) está logado.")
             self.user_name_label.configure(text=f"Olá, {self.user_first_name}!")
             self.user_name_label.pack(side="left", padx=(0, 10), pady=10)
-            self.btn_geli.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
-            self.btn_receitas.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
-            self.btn_estoque.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
-            self.btn_compras.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
+            for btn in [self.btn_geli, self.btn_receitas, self.btn_estoque, self.btn_compras]:
+                btn.configure(fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
         else:
             print("Log: Nenhum usuário logado.")
             self.user_name_label.configure(text="")
             self.user_name_label.pack_forget()
-            self.btn_geli.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
-            self.btn_receitas.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
-            self.btn_estoque.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
-            self.btn_compras.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
+            for btn in [self.btn_geli, self.btn_receitas, self.btn_estoque, self.btn_compras]:
+                btn.configure(fg_color=self.BUTTON_DISABLED_COLOR, hover_color=self.BUTTON_DISABLED_COLOR)
 
     def _abrir_tela_cadastro(self):
-        # (Função idêntica, sem mudanças)
-        if hasattr(self, 'login_window') and self.login_window.winfo_exists():
-            self.login_window.withdraw()
-        if hasattr(self, 'register_window') and self.register_window.winfo_exists():
-            self.register_window.focus()
-            return
+        if hasattr(self, 'login_window') and self.login_window.winfo_exists(): self.login_window.withdraw()
+        if hasattr(self, 'register_window') and self.register_window.winfo_exists(): self.register_window.focus(); return
+       
         self.register_window = ctk.CTkToplevel(self)
         self.register_window.title("Criar Conta")
-        self.register_window.geometry("400x550")
         self.register_window.transient(self)
         self.register_window.grab_set()
         self.register_window.resizable(False, False)
-        x_app = self.winfo_x()
-        y_app = self.winfo_y()
-        w_app = self.winfo_width()
-        h_app = self.winfo_height()
-        x_reg = x_app + (w_app // 2) - (400 // 2)
-        y_reg = y_app + (h_app // 2) - (550 // 2)
-        self.register_window.geometry(f"400x550+{x_reg}+{y_reg}")
+        self._centralizar_janela(self.register_window, 400, 550)
+
         ctk.CTkLabel(self.register_window, text="Criar Conta", font=self.large_font).pack(pady=(20, 10))
-        self.var_nome = ctk.StringVar()
-        self.var_telefone = ctk.StringVar()
-        self.var_email = ctk.StringVar()
-        self.var_senha = ctk.StringVar()
-        self.var_conf_senha = ctk.StringVar()
-        self.var_termos = ctk.IntVar()
-        ctk.CTkLabel(self.register_window, text="Nome Completo:", font=self.small_font, anchor="w").pack(fill="x", padx=50)
-        nome_entry = ctk.CTkEntry(self.register_window, width=300, height=35, textvariable=self.var_nome)
-        nome_entry.pack(pady=(0, 10))
-        ctk.CTkLabel(self.register_window, text="Telefone (opcional):", font=self.small_font, anchor="w").pack(fill="x", padx=50)
-        telefone_entry = ctk.CTkEntry(self.register_window, width=300, height=35, textvariable=self.var_telefone)
-        telefone_entry.pack(pady=(0, 10))
-        ctk.CTkLabel(self.register_window, text="E-mail:", font=self.small_font, anchor="w").pack(fill="x", padx=50)
-        email_entry = ctk.CTkEntry(self.register_window, width=300, height=35, textvariable=self.var_email)
-        email_entry.pack(pady=(0, 10))
-        ctk.CTkLabel(self.register_window, text="Senha (mín. 6 caracteres):", font=self.small_font, anchor="w").pack(fill="x", padx=50)
-        senha_entry = ctk.CTkEntry(self.register_window, width=300, height=35, show="*", textvariable=self.var_senha)
-        senha_entry.pack(pady=(0, 10))
-        ctk.CTkLabel(self.register_window, text="Confirmar Senha:", font=self.small_font, anchor="w").pack(fill="x", padx=50)
-        conf_senha_entry = ctk.CTkEntry(self.register_window, width=300, height=35, show="*", textvariable=self.var_conf_senha)
-        conf_senha_entry.pack(pady=(0, 10))
-        termos_frame = ctk.CTkFrame(self.register_window, fg_color="transparent")
-        termos_frame.pack(pady=10)
-        termos_check = ctk.CTkCheckBox(termos_frame, text="Li e concordo com os ", variable=self.var_termos,
-                                       font=self.small_light_font, command=self._validar_campos_cadastro)
-        termos_check.pack(side="left")
-        termos_link = ctk.CTkLabel(termos_frame, text="Termos de Uso", text_color="#0066CC",
-                                     font=self.link_font, cursor="hand2")
-        termos_link.pack(side="left")
-        termos_link.bind("<Button-1>", lambda e: self._abrir_janela_termos())
-        self.btn_cadastrar = ctk.CTkButton(self.register_window, text="Cadastrar", width=300, height=40,
-                                           font=self.button_font, state="disabled",
-                                           command=self._executar_cadastro)
+        self.var_nome = ctk.StringVar(); self.var_telefone = ctk.StringVar(); self.var_email = ctk.StringVar(); self.var_senha = ctk.StringVar(); self.var_conf_senha = ctk.StringVar(); self.var_termos = ctk.IntVar()
+       
+        # Widgets de cadastro resumidos para economizar espaço visual (lógica mantida)
+        for txt, var, sh in [("Nome Completo:", self.var_nome, None), ("Telefone (opcional):", self.var_telefone, None), ("E-mail:", self.var_email, None), ("Senha (mín. 6):", self.var_senha, "*"), ("Confirmar Senha:", self.var_conf_senha, "*")]:
+            ctk.CTkLabel(self.register_window, text=txt, font=self.small_font, anchor="w").pack(fill="x", padx=50)
+            ctk.CTkEntry(self.register_window, width=300, height=35, textvariable=var, show=sh).pack(pady=(0, 10))
+
+        termos_frame = ctk.CTkFrame(self.register_window, fg_color="transparent"); termos_frame.pack(pady=10)
+        ctk.CTkCheckBox(termos_frame, text="Li e concordo com os ", variable=self.var_termos, font=self.small_light_font, command=self._validar_campos_cadastro).pack(side="left")
+        lbl_termos = ctk.CTkLabel(termos_frame, text="Termos de Uso", text_color="#0066CC", font=self.link_font, cursor="hand2")
+        lbl_termos.pack(side="left"); lbl_termos.bind("<Button-1>", lambda e: self._abrir_janela_termos())
+       
+        self.btn_cadastrar = ctk.CTkButton(self.register_window, text="Cadastrar", width=300, height=40, font=self.button_font, state="disabled", command=self._executar_cadastro)
         self.btn_cadastrar.pack(pady=10)
-        self.register_error_label = ctk.CTkLabel(self.register_window, text="", text_color="red", font=self.small_font)
-        self.register_error_label.pack()
-        self.var_nome.trace_add("write", self._validar_campos_cadastro)
-        self.var_email.trace_add("write", self._validar_campos_cadastro)
-        self.var_senha.trace_add("write", self._validar_campos_cadastro)
-        self.var_conf_senha.trace_add("write", self._validar_campos_cadastro)
-        
+        self.register_error_label = ctk.CTkLabel(self.register_window, text="", text_color="red", font=self.small_font); self.register_error_label.pack()
+       
+        for v in [self.var_nome, self.var_email, self.var_senha, self.var_conf_senha]: v.trace_add("write", self._validar_campos_cadastro)
         self.register_window.protocol("WM_DELETE_WINDOW", lambda: self._fechar_tela_cadastro(close_login=False))
 
     def _fechar_tela_cadastro(self, close_login=False):
-        # (Função idêntica, sem mudanças)
-        if hasattr(self, 'register_window') and self.register_window.winfo_exists():
-            self.register_window.destroy()
+        if hasattr(self, 'register_window') and self.register_window.winfo_exists(): self.register_window.destroy()
         if close_login:
-            if hasattr(self, 'login_window') and self.login_window.winfo_exists():
-                self.login_window.destroy()
+            if hasattr(self, 'login_window') and self.login_window.winfo_exists(): self.login_window.destroy()
         else:
-            if hasattr(self, 'login_window') and not self.login_window.winfo_exists():
-                self.login_window.deiconify()
-            elif hasattr(self, 'login_window'):
-                self.login_window.focus()
+            if hasattr(self, 'login_window') and self.login_window.winfo_exists(): self.login_window.deiconify()
 
     def _validar_campos_cadastro(self, *args):
-        # (Função idêntica, sem mudanças)
-        email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-        nome_regex = r"^[a-zA-ZÀ-ÿ\s']+$"
-        nome = self.var_nome.get()
-        email = self.var_email.get()
-        senha = self.var_senha.get()
-        conf_senha = self.var_conf_senha.get()
-        termos_aceitos = self.var_termos.get() == 1
-        is_nome_valido = bool(re.match(nome_regex, nome) and len(nome) > 2)
-        is_email_valido = bool(re.match(email_regex, email))
-        is_senha_valida = bool(len(senha) >= 6)
-        is_senha_confirmada = bool(senha == conf_senha and is_senha_valida)
-        if is_nome_valido and is_email_valido and is_senha_valida and is_senha_confirmada and termos_aceitos:
-            self.btn_cadastrar.configure(state="normal")
-        else:
-            self.btn_cadastrar.configure(state="disabled")
+        nome = self.var_nome.get(); email = self.var_email.get(); senha = self.var_senha.get(); conf = self.var_conf_senha.get()
+        valido = (len(nome)>2 and re.match(r"^[a-zA-ZÀ-ÿ\s']+$", nome) and re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email) and len(senha)>=6 and senha==conf and self.var_termos.get()==1)
+        self.btn_cadastrar.configure(state="normal" if valido else "disabled")
 
+    # --- CADASTRO CORRIGIDO (TOKEN + LOG) ---
     def _executar_cadastro(self):
-        # (Função idêntica, sem mudanças)
-        nome = self.var_nome.get().strip()
-        telefone = self.var_telefone.get().strip() or None
-        email = self.var_email.get().strip()
-        senha = self.var_senha.get()
+        nome = self.var_nome.get().strip(); telefone = self.var_telefone.get().strip() or None; email = self.var_email.get().strip(); senha = self.var_senha.get()
         senha_hash = generate_password_hash(senha)
+       
         if not self.db_connection or not self.db_connection.is_connected():
-            self.register_error_label.configure(text="Erro de conexão com o banco.")
             self.db_connection = conectar_mysql(db_host, db_name, db_usuario, db_senha)
-            return
+       
         try:
             cursor = self.db_connection.cursor()
-            query = "INSERT INTO usuarios (nome, telefone, email, senha) VALUES (%s, %s, %s, %s)"
-            cursor.execute(query, (nome, telefone, email, senha_hash))
+            cursor.execute("INSERT INTO usuarios (nome, telefone, email, senha) VALUES (%s, %s, %s, %s)", (nome, telefone, email, senha_hash))
             new_user_id = cursor.lastrowid
             self.db_connection.commit()
             cursor.close()
-            
-            self._registrar_log(new_user_id, 'Register', 'Success')
-            
+           
             self.user_id = new_user_id
             self.user_first_name = nome.split(' ')[0]
-            self.session_manager.save_session(self.user_id, self.user_first_name)
+           
+            # Gera token automático no cadastro também
+            selector, authenticator, hashed_authenticator = self._create_remember_token()
+            if self._save_remember_token_db(self.user_id, selector, hashed_authenticator):
+                self.session_manager.save_token(selector, authenticator)
+
+            # Log de Registro
+            self._registrar_log(self.user_id, 'Register', 'Success')
+
             self._atualizar_estado_login()
-            messagebox.showinfo("Sucesso!", f"Bem-vindo, {self.user_first_name}! Cadastro realizado com sucesso.")
+            messagebox.showinfo("Sucesso!", f"Bem-vindo, {self.user_first_name}! Cadastro realizado.")
             self._fechar_tela_cadastro(close_login=True)
+           
         except IntegrityError as e:
-            if e.errno == 1062:
-                self.register_error_label.configure(text="Este e-mail já está cadastrado.")
-            else:
-                self.register_error_label.configure(text=f"Erro de banco: {e}")
-            print(f"Log: Erro de MySQL em _executar_cadastro: {e}")
+            self.register_error_label.configure(text="E-mail já cadastrado." if e.errno == 1062 else f"Erro: {e}")
         except Error as e:
-            self.register_error_label.configure(text=f"Erro de banco: {e}")
-            print(f"Log: Erro de MySQL em _executar_cadastro: {e}")
+            self.register_error_label.configure(text=f"Erro BD: {e}")
 
     def _abrir_janela_termos(self):
         # (Função idêntica, sem mudanças)
@@ -614,7 +530,7 @@ class App(ctk.CTk):
         self.termos_window = ctk.CTkToplevel(self)
         self.termos_window.title("Termos de Uso e Política de Privacidade")
         self.termos_window.geometry("700x500")
-        
+       
         # Pega a posição da janela de registro para centralizar em relação a ELA
         # (Verifica se a register_window existe antes de tentar ler sua posição)
         if hasattr(self, 'register_window') and self.register_window.winfo_exists():
@@ -636,14 +552,14 @@ class App(ctk.CTk):
 
         self.termos_window.grab_set()
         self.termos_window.resizable(True, True)
-        
+       
         textbox = ctk.CTkTextbox(self.termos_window, wrap="word", font=self.small_light_font, spacing2=5)
         textbox.pack(fill="both", expand=True, padx=20, pady=(20, 10))
         textbox.tag_config("h1", font=ctk.CTkFont("Poppins Bold", 18), spacing1=(15, 5))
         textbox.tag_config("b", font=ctk.CTkFont("Poppins SemiBold", 12))
         textbox.tag_config("i", font=ctk.CTkFont("Poppins Light Italic", 12))
         textbox.tag_config("li", spacing1=(0, 2))
-        
+       
         termos_html = """
 <h1>Termos e Condições de Uso da Plataforma MyGeli</h1>
 <b>Data de Efetivação:</b> 09 de setembro de 2025
@@ -847,20 +763,20 @@ class App(ctk.CTk):
         ctk.CTkButton(self.termos_window, text="Fechar", width=100,
                       command=self.termos_window.destroy).pack(pady=10)
 
-# --- Execução da Aplicação ---
 if __name__ == "__main__":
-    # Credenciais e conexão
-    db_host = "localhost"
-    db_name = "mygeli"
-    db_usuario = "foodyzeadm"
-    db_senha = "supfood0017admx"
-    
+    # Recupera as credenciais das variáveis de ambiente carregadas pelo load_dotenv()
+    db_host = os.getenv('DB_HOST')
+    db_name = os.getenv('DB_NAME')
+    db_usuario = os.getenv('DB_USER')
+    db_senha = os.getenv('DB_PASS')
+
+    # Conecta usando as variáveis
     conexao_ativa = conectar_mysql(db_host, db_name, db_usuario, db_senha)
 
     app = App(db_connection=conexao_ativa)
     app.mainloop()
 
-    # Fecha a conexão ao sair da aplicação
+    # Fecha a conexão ao sair
     if conexao_ativa and conexao_ativa.is_connected():
         conexao_ativa.close()
-        print("Log: Conexão com o BD fechada ao finalizar o app.")
+        print("Log: Conexão com o BD fechada.")
