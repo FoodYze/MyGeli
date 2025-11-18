@@ -13,6 +13,10 @@ from tkinter import messagebox
 import threading
 from dotenv import load_dotenv
 
+# --- NOVAS IMPORTAÇÕES PARA SEGURANÇA ---
+import hashlib
+# ----------------------------------------
+
 from session_manager import SessionManager
 
 load_dotenv()
@@ -37,14 +41,14 @@ def conectar_mysql(host, database, user, password):
             return conexao
     except Error as e:
         print(f"Log: Erro CRÍTICO ao conectar ao MySQL: {e}")
-        messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao banco de dados:\n{e}\n\nVerifique suas credenciais e se o servidor MySQL está rodando.")
+        # messagebox removido daqui para evitar travamento em importações ou fluxos sem GUI principal inicializada
         return None
 
 # --- SUAS CREDENCIAIS ---
-db_host = "localhost"
-db_name = "mygeli"
-db_usuario = "foodyzeadm"
-db_senha = "supfood0017admx"
+db_host = os.getenv('DB_HOST')
+db_name = os.getenv('DB_NAME')
+db_usuario = os.getenv('DB_USER')
+db_senha = os.getenv('DB_PASS')
 
 # --- CAMINHOS DOS ARQUIVOS ---
 OUTPUT_PATH = Path(__file__).parent
@@ -213,6 +217,7 @@ else:
                         "FORMATO 1: RECEITA ÚNICA"
                         "A resposta DEVE começar IMEDIATAMENTE na primeira linha com o título, SEM NENHUM TEXTO ANTES."
                         "TÍTULO DA RECEITA EM MAIÚSCULAS"
+                        "[ESPAÇAMENTO]"
                         "CATEGORIA DA RECEITA"
                         "NOTA IMPORTANTE PARA CATEGORIA DA RECEITA: Na categoria da receita você deve colocar oque se adequa entre as categorias:Entrada, Prato Principal, Acompanhamento, Sobremesa, Bebida, Lanche, Sopa, Salada, Café da Manhã."
                         "[ESPAÇAMENTO]"
@@ -328,15 +333,17 @@ class App(ctk.CTk):
         self.conexao = conexao_bd
         self.last_recipe_for_update = None
         
+        # --- NOVA LÓGICA DE SESSÃO COM TOKEN ---
         self.session_manager = SessionManager()
-        session_data = self.session_manager.get_session()
-        self.user_id = session_data.get("user_id")
-        self.user_first_name = session_data.get("first_name")
-        
-        if not self.user_id:
-            messagebox.showerror("Erro de Sessão", "Nenhum usuário logado. Por favor, feche esta janela e faça o login na tela principal.")
+        self.user_id = None
+        self.user_first_name = None
+
+        # Verifica a sessão usando o token persistente
+        if not self._validar_sessao():
+            messagebox.showerror("Erro de Sessão", "Sessão inválida ou expirada. Por favor, faça login novamente.")
             self.after(100, self.destroy) 
             return
+        # ---------------------------------------
 
         window_width = 400
         window_height = 650
@@ -418,6 +425,49 @@ class App(ctk.CTk):
         # Sincroniza as receitas já existentes na pasta com o banco de dados
         self._sincronizar_receitas_locais_com_banco()
 
+    # --- MÉTODO DE VALIDAÇÃO DE SESSÃO ---
+    def _validar_sessao(self):
+        """Verifica se o token local é válido no banco de dados."""
+        token_data = self.session_manager.get_token()
+        if not token_data: return False
+
+        selector = token_data.get("selector")
+        authenticator = token_data.get("authenticator")
+        if not selector or not authenticator: return False
+
+        try:
+            # Garante conexão se não existir
+            if not self.conexao or not self.conexao.is_connected():
+                 self.conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+                 if not self.conexao: return False
+
+            cursor = self.conexao.cursor(dictionary=True)
+            # Traz também o NOME do usuário para a UI
+            query = """
+                SELECT t.user_id, t.hashed_token, t.expires, u.nome 
+                FROM login_tokens t
+                JOIN usuarios u ON t.user_id = u.id
+                WHERE t.selector = %s
+            """
+            cursor.execute(query, (selector,))
+            record = cursor.fetchone()
+            cursor.close()
+
+            if not record: return False
+            if record['expires'] < datetime.now(): return False
+
+            hashed_auth_check = hashlib.sha256(authenticator.encode()).hexdigest()
+            if hashed_auth_check == record['hashed_token']:
+                self.user_id = record['user_id']
+                self.user_first_name = record['nome'].split(' ')[0]
+                print(f"Log (gui0): Acesso autorizado para {self.user_first_name} (ID: {self.user_id})")
+                return True
+            else:
+                return False
+        except Error as e:
+            print(f"Log (gui0): Erro ao validar sessão: {e}")
+            return False
+    # -------------------------------------
 
     def _sincronizar_receitas_locais_com_banco(self):
         """Verifica a pasta saved_recipes na inicialização e salva no banco as receitas que ainda não existem."""
@@ -737,62 +787,170 @@ class App(ctk.CTk):
         print(f"DEBUG (Análise Melhorada): Ingredientes para baixa extraídos: {parsed_ingredients}")
         return parsed_ingredients
     
+    def _converter_e_subtrair(self, qtd_estoque, unidade_estoque, qtd_receita, unidade_receita):
+        """
+        Retorna a nova quantidade e a nova unidade para o estoque.
+        Retorna (None, None) se a conversão for impossível ou o estoque for insuficiente.
+        """
+        # Normaliza strings
+        u_est = unidade_estoque.lower()
+        u_rec = unidade_receita.lower()
+        
+        # Fatores de conversão para a base (g ou ml)
+        # Unidades conhecidas: 'quilos (kg)', 'gramas (g)', 'litros (l)', 'mililitros (ml)', 'unidades'
+        
+        fator_estoque = 1
+        tipo_estoque = 'unidade'
+        
+        if 'kg' in u_est or 'quilo' in u_est: fator_estoque = 1000; tipo_estoque = 'massa'
+        elif 'g' in u_est or 'grama' in u_est: fator_estoque = 1; tipo_estoque = 'massa'
+        elif 'l' in u_est or 'litro' in u_est: fator_estoque = 1000; tipo_estoque = 'volume'
+        elif 'ml' in u_est or 'mililitro' in u_est: fator_estoque = 1; tipo_estoque = 'volume'
+        
+        fator_receita = 1
+        tipo_receita = 'unidade'
+        
+        if 'kg' in u_rec or 'quilo' in u_rec: fator_receita = 1000; tipo_receita = 'massa'
+        elif 'g' in u_rec or 'grama' in u_rec: fator_receita = 1; tipo_receita = 'massa'
+        elif 'l' in u_rec or 'litro' in u_rec: fator_receita = 1000; tipo_receita = 'volume'
+        elif 'ml' in u_rec or 'mililitro' in u_rec: fator_receita = 1; tipo_receita = 'volume'
+        
+        # 1. Conversão Direta (Massa com Massa, Volume com Volume)
+        if tipo_estoque == tipo_receita and tipo_estoque != 'unidade':
+            estoque_em_base = float(qtd_estoque) * fator_estoque
+            receita_em_base = float(qtd_receita) * fator_receita
+            
+            nova_qtd_base = estoque_em_base - receita_em_base
+            
+            if nova_qtd_base < 0: return None, None # Estoque insuficiente
+            
+            # Decide a unidade final
+            if nova_qtd_base >= 1000:
+                return nova_qtd_base / 1000, ("Quilos" if tipo_estoque == 'massa' else "Litros")
+            else:
+                return nova_qtd_base, ("Gramas" if tipo_estoque == 'massa' else "Mililitros")
+
+        # 2. Caso Especial: Unidade no Estoque vs Peso/Volume na Receita (Ex: 1 Abacaxi vs 200g)
+        # Essa é a parte difícil. Vamos assumir uma média genérica apenas para não travar, 
+        # ou converter a unidade do estoque para gramas se for "1 unidade" assumindo que o usuário vai usar parte dela.
+        if tipo_estoque == 'unidade' and tipo_receita == 'massa':
+            # LÓGICA DE ESTIMATIVA:
+            # Se o usuário tem UNIDADES e a receita pede GRAMAS, é impossível saber exato.
+            # Vamos assumir que 1 Unidade média de fruta/legume genérico ~ 150g a 1000g.
+            # Para não quebrar, vamos manter em UNIDADES, mas tentar deduzir percentualmente.
+            # Ex: Se tem 1 Abacaxi e usa 200g. Assumimos que 1 Abacaxi ~ 1000g. Logo usa 0.2 unidades.
+            
+            # Estimativa: 1 Unidade de "coisa grande" = 1000g (Abacaxi, Melancia)
+            # Estimativa: 1 Unidade de "coisa pequena" = 150g (Tomate, Cebola)
+            # Como não sabemos o que é, vamos usar uma regra segura:
+            # Se a receita pede gramas, vamos subtrair proporcionalmente assumindo 1 UNIDADE = 1000g para facilitar
+            # ou converter a unidade do estoque para Gramas (g) estimado.
+            
+            # Vamos converter o estoque para gramas (estimado 500g por unidade padrão para evitar erros grosseiros)
+            peso_medio_unidade = 1000.0 # Assumindo 1kg por unidade para frutas grandes como abacaxi
+            
+            estoque_estimado_g = float(qtd_estoque) * peso_medio_unidade
+            receita_em_g = float(qtd_receita) * fator_receita
+            
+            nova_qtd_g = estoque_estimado_g - receita_em_g
+            
+            if nova_qtd_g < 0: return None, None # Insuficiente
+            
+            # Retorna em gramas ou kg
+            if nova_qtd_g >= 1000:
+                return nova_qtd_g / 1000, "Quilos"
+            else:
+                return nova_qtd_g, "Gramas"
+
+        # 3. Mesma unidade (Unidade - Unidade)
+        if tipo_estoque == 'unidade' and tipo_receita == 'unidade':
+            nova_qtd = float(qtd_estoque) - float(qtd_receita)
+            if nova_qtd < 0: return None, None
+            return nova_qtd, "Unidades"
+
+        return None, None # Tipos incompatíveis (ex: Litros - Gramas)
+    
     def _execute_stock_update(self):
         if not self.last_recipe_for_update or "ingredientes" not in self.last_recipe_for_update:
             print("LOG: Nenhuma receita pendente para atualização de estoque.")
             return
         if not self.conexao or not self.conexao.is_connected():
-            print("ERRO CRÍTICO: Sem conexão com o BD para atualizar estoque.")
-            self.add_message("Não consegui me conectar ao banco de dados para atualizar o estoque.", "bot_error")
-            return
+            # Tenta reconectar se caiu
+            self.conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+            if not self.conexao:
+                print("ERRO CRÍTICO: Sem conexão com o BD para atualizar estoque.")
+                self.add_message("Não consegui me conectar ao banco de dados para atualizar o estoque.", "bot_error")
+                return
         
         if not self.user_id:
-            print("ERRO: user_id não encontrado. Não é possível atualizar o estoque.")
-            self.add_message("Alerta: Não foi possível atualizar o estoque (sessão de usuário não encontrada).", "bot_error")
+            print("ERRO: user_id não encontrado.")
+            self.add_message("Alerta: Sessão inválida.", "bot_error")
             return
         
         recipe_title = self.last_recipe_for_update.get("titulo", "Receita não identificada")
         ingredients_to_update = self.last_recipe_for_update["ingredientes"]
 
+        sucesso_parcial = False
+        itens_atualizados = []
+        itens_falha = []
+
         try:
-            cursor = self.conexao.cursor()
+            cursor = self.conexao.cursor(dictionary=True)
+            
             for item in ingredients_to_update:
-                nome = item['nome']
-                quantidade_a_remover = item['quantidade']
-                unidade = item.get('unidade', '')
-                sql_update_stock = """
-                    UPDATE produtos 
-                    SET quantidade_produto = quantidade_produto - %s 
-                    WHERE LOWER(nome_produto) = LOWER(%s) AND user_id = %s AND quantidade_produto >= %s
-                """
-                cursor.execute(sql_update_stock, (quantidade_a_remover, nome, self.user_id, quantidade_a_remover))
-                sql_insert_history = """
-                    INSERT INTO historico_uso (id_user, nome_receita, nome_ingrediente, quantidade_usada, unidade_medida)
-                    VALUES (%s, %s, %s, %s, %s)
-                """
-                # Adiciona self.user_id (usuário logado) como o primeiro parâmetro
-                cursor.execute(sql_insert_history, (self.user_id, recipe_title, nome, quantidade_a_remover, unidade))
+                nome_receita = item['nome']
+                qtd_receita = item['quantidade']
+                unidade_receita = item.get('unidade', 'Unidades')
                 
-            # --- 3. ADIÇÃO: COMANDO DELETE (Limpa itens zerados) ---
-            # Após o loop, e antes de 'commitar', adicionamos este comando.
-            print(f"Log: Verificando estoque de user_id {self.user_id} por itens zerados...")
-            sql_delete_zeros = """
-            DELETE FROM produtos 
-            WHERE user_id = %s AND quantidade_produto <= 0
-            """
-            cursor.execute(sql_delete_zeros, (self.user_id,))
-            print(f"Log: Limpeza de itens zerados concluída. {cursor.rowcount} linha(s) removida(s).")
-            # --- FIM DA ADIÇÃO ---
+                # 1. Buscar o item no estoque para ver o que temos
+                cursor.execute("SELECT * FROM produtos WHERE LOWER(nome_produto) = LOWER(%s) AND user_id = %s", (nome_receita, self.user_id))
+                produto_estoque = cursor.fetchone()
                 
+                if produto_estoque:
+                    qtd_atual = float(produto_estoque['quantidade_produto'])
+                    unidade_atual = produto_estoque['tipo_volume']
+                    
+                    # 2. Calcular a nova quantidade e unidade
+                    nova_qtd, nova_unidade = self._converter_e_subtrair(qtd_atual, unidade_atual, qtd_receita, unidade_receita)
+                    
+                    if nova_qtd is not None:
+                        # 3. Atualizar no Banco
+                        if nova_qtd <= 0.001: # Se zerou
+                            cursor.execute("DELETE FROM produtos WHERE id_produto = %s", (produto_estoque['id_produto'],))
+                        else:
+                            cursor.execute("UPDATE produtos SET quantidade_produto = %s, tipo_volume = %s WHERE id_produto = %s", 
+                                           (nova_qtd, nova_unidade, produto_estoque['id_produto']))
+                        
+                        # 4. Registrar Histórico
+                        cursor.execute("""
+                            INSERT INTO historico_uso (id_user, nome_receita, nome_ingrediente, quantidade_usada, unidade_medida)
+                            VALUES (%s, %s, %s, %s, %s)
+                        """, (self.user_id, recipe_title, nome_receita, qtd_receita, unidade_receita))
+                        
+                        itens_atualizados.append(nome_receita)
+                        sucesso_parcial = True
+                    else:
+                        print(f"Log: Estoque insuficiente ou conversão impossível para {nome_receita}")
+                        itens_falha.append(f"{nome_receita} (estoque insuficiente)")
+                else:
+                    itens_falha.append(f"{nome_receita} (não encontrado)")
+
             self.conexao.commit()
             cursor.close()
-            print(f"SUCESSO: Estoque e histórico atualizados no BD para {len(ingredients_to_update)} itens.")
-            self.add_message("Perfeito! Já dei baixa dos ingredientes no seu estoque e registrei no seu histórico. Bom apetite!", "bot_info")
+            
+            if sucesso_parcial:
+                msg = "Prontinho! Atualizei seu estoque."
+                if itens_falha:
+                    msg += f"\n(Nota: Não consegui atualizar: {', '.join(itens_falha)})"
+                self.add_message(msg, "bot_info")
+                print(f"SUCESSO: Atualizados: {itens_atualizados}")
+            else:
+                self.add_message("Não consegui dar baixa em nenhum item. Verifique se os nomes no estoque batem com a receita.", "bot_error")
 
         except Error as e:
-            print(f"ERRO SQL ao atualizar estoque e histórico: {e}")
+            print(f"ERRO SQL ao atualizar estoque: {e}")
             self.conexao.rollback()
-            self.add_message(f"Tive um problema ao atualizar o estoque: {e}", "bot_error")
+            self.add_message(f"Erro ao atualizar o banco de dados: {e}", "bot_error")
         finally:
             self.last_recipe_for_update = None
 
@@ -802,31 +960,30 @@ if __name__ == "__main__":
         # Janela de Alerta se a API Key não estiver configurada
         alert_root = ctk.CTk()
         alert_root.title("Configuração Necessária")
-        alert_root.geometry("450x180") # Ajuste o tamanho conforme necessário
-        alert_root.attributes("-topmost", True) # Mantém a janela no topo
+        alert_root.geometry("450x180")
+        alert_root.attributes("-topmost", True)
 
         alert_label_title = ctk.CTkLabel(alert_root,
                                          text="Chave API do Google Não Encontrada!",
                                          font=("Helvetica", 16, "bold"),
-                                         text_color="#D32F2F") # Cor vermelha para alerta
+                                         text_color="#D32F2F")
         alert_label_title.pack(pady=(10,5), padx=20)
 
         alert_label_message = ctk.CTkLabel(alert_root,
-                                     text="A variável de ambiente 'GOOGLE_API_KEY' não foi encontrada.\n\nPor favor, configure-a no seu sistema para que o programa possa se conectar à API do Google.",
-                                     font=("Helvetica", 13),
-                                     wraplength=420, # Quebra de linha para textos longos
-                                     justify="center")
+                                           text="A variável de ambiente 'GOOGLE_API_KEY' não foi encontrada.\n\nPor favor, configure-a no arquivo .env.",
+                                           font=("Helvetica", 13),
+                                           wraplength=420,
+                                           justify="center")
         alert_label_message.pack(pady=5, padx=20)
 
         def _close_alert_and_exit():
             alert_root.destroy()
-            sys.exit("API Key não configurada. Encerrando.") # Encerra o script
+            sys.exit("API Key não configurada. Encerrando.")
 
         ok_button = ctk.CTkButton(alert_root, text="OK, Encerrar", command=_close_alert_and_exit, width=150)
         ok_button.pack(pady=(10,15))
 
-        # Centralizar a janela de alerta
-        alert_root.update_idletasks() # Garante que as dimensões são calculadas
+        alert_root.update_idletasks()
         width = alert_root.winfo_width()
         height = alert_root.winfo_height()
         x = (alert_root.winfo_screenwidth() // 2) - (width // 2)
@@ -835,14 +992,15 @@ if __name__ == "__main__":
 
         alert_root.mainloop()
     else:
+        # Tenta conectar usando as variáveis do .env
         conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+        
         if conexao:
             app = App(conexao_bd=conexao)
             app.mainloop()
-            # Fecha a conexão quando o app fechar
             if conexao.is_connected():
                 conexao.close()
                 print("Log: Conexão com o BD fechada ao finalizar o app.")
         else:
-            print("CRÍTICO: A aplicação não pode ser iniciada pois a conexão com o banco de dados falhou na inicialização.")
-            # O messagebox de erro já foi mostrado dentro de conectar_mysql()
+            print("CRÍTICO: A aplicação não pode ser iniciada pois a conexão com o banco de dados falhou.")
+            # O messagebox de erro já é mostrado dentro de conectar_mysql()

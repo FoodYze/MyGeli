@@ -9,20 +9,26 @@ class SessionManager:
     """
     def __init__(self):
         APP_NAME = "MyGeli"
-        # Define o caminho correto (%LOCALAPPDATA%)
+        
+        # Tenta usar %LOCALAPPDATA% no Windows
         local_app_data = os.getenv('LOCALAPPDATA')
+
         if local_app_data:
             self.data_dir = Path(local_app_data) / APP_NAME
         else:
+            # Fallback para Mac/Linux
             self.data_dir = Path.home() / f".{APP_NAME.lower()}"
             
+        # Cria o diretório se ele não existir
         try:
             self.data_dir.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             print(f"Log CRÍTICO: Falha ao criar diretório de sessão: {e}")
             self.data_dir = Path(__file__).parent 
 
+        # AGORA O ARQUIVO É OUTRO (auth_token.json)
         self.SESSION_FILE = self.data_dir / "auth_token.json"
+        print(f"Log: Caminho do token definido para: {self.SESSION_FILE}") # Adição da branch do PR
 
     def save_token(self, selector, authenticator):
         """Salva o par de tokens localmente (como um cookie)."""
@@ -51,4 +57,5 @@ class SessionManager:
                 self.SESSION_FILE.unlink()
             print("Log: Token local apagado (logout).")
         except Exception as e:
+            # Conflito resolvido mantendo a linha da branch do PR
             print(f"Log: Erro ao limpar token local: {e}")

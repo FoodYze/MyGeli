@@ -9,11 +9,17 @@ import traceback
 import re
 import google.generativeai as genai
 import threading
-# Removido import de gui0, assumindo que a chave da API do Google será definida aqui.
-# Se o usuário tiver problemas, ele deve fornecer o arquivo gui0.py ou a chave.
-GOOGLE_API_KEY = "SUA_CHAVE_AQUI" # Substitua pela sua chave real se for usar a função de nutrição
 import mysql.connector
 from mysql.connector import Error
+import hashlib
+from datetime import datetime
+
+# --- Importação do SessionManager e Configurações de Sessão ---
+from session_manager import SessionManager
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Constantes e Configurações ---
 OUTPUT_PATH = Path(__file__).parent
@@ -25,10 +31,13 @@ FAVORITE_PREFIX = "★_"
 ICONS_GERAL_PATH = OUTPUT_PATH / "assets" / "geral"
 
 # --- SUAS CREDENCIAIS ---
-db_host = "localhost"
-db_name = "mygeli"
-db_usuario = "foodyzeadm"
-db_senha = "supfood0017admx"
+# Substitua pela sua chave real se for usar a função de nutrição
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+
+db_host = os.getenv('DB_HOST')
+db_name = os.getenv('DB_NAME')
+db_usuario = os.getenv('DB_USER')
+db_senha = os.getenv('DB_PASS')
 
 def conectar_mysql(host, database, user, password):
     """ Tenta conectar ao banco de dados MySQL. """
@@ -50,13 +59,16 @@ def conectar_mysql(host, database, user, password):
             return conexao
     except Error as e:
         print(f"Log: Erro CRÍTICO ao conectar ao MySQL: {e}")
-        messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao banco de dados:\n{e}\n\nVerifique suas credenciais e se o servidor MySQL está rodando.")
+        # Não mostra popup aqui para não travar inicialização silenciosa
         return None
 
 """Chamada do Gemini para gerar instruções nutricionais"""
 try:
-    genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    if GOOGLE_API_KEY != "SUA_CHAVE_AQUI":
+        genai.configure(api_key=GOOGLE_API_KEY)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+    else:
+        model = None
 except Exception as e:
     print(f"AVISO: Não foi possível configurar a API do Gemini. A função de nutrição estará desabilitada. Erro: {e}")
     model = None
@@ -83,12 +95,33 @@ recipe_buttons_inner_frame = None
 window = None
 
 def extract_recipe_type_from_content(content: str) -> str:
-    """Extrai o tipo de prato do conteúdo da receita."""
+    """
+    Extrai o tipo de prato do conteúdo da receita.
+    Tenta encontrar a tag explícita 'TIPO DE PRATO:'.
+    Se falhar, verifica se a segunda ou terceira linha contém uma categoria válida isolada.
+    """
     lines = content.splitlines()
+    
+    # 1. Tenta encontrar a tag oficial em qualquer lugar do arquivo
     for line in lines:
         stripped_line = line.strip()
         if stripped_line.upper().startswith(TIPO_DE_PRATO_TAG):
             return stripped_line[len(TIPO_DE_PRATO_TAG):].strip()
+            
+    # 2. Lógica de Fallback (Recuperação)
+    # Se não achou a tag, olha as primeiras linhas (geralmente a categoria está logo abaixo do título)
+    # Ignora a primeira linha (assumindo que é o título)
+    for i in range(1, min(5, len(lines))): # Olha até a 5ª linha
+        line_upper = lines[i].strip().upper()
+        
+        # Verifica se essa linha é EXATAMENTE igual a uma das opções (ignorando maiúsculas/minúsculas)
+        # Ex: Se a linha for "SALADA", vai bater com a opção "Salada"
+        for option in TIPO_DE_PRATO_OPTIONS:
+            if option.upper() == "TODOS OS TIPOS": continue
+            
+            if line_upper == option.upper():
+                return option # Retorna a categoria formatada corretamente (ex: "Salada")
+                
     return TIPO_DE_PRATO_DEFAULT_TAG
 
 def _parse_todos_os_ingredientes(recipe_text):
@@ -381,7 +414,7 @@ def on_search_button_click():
 def show_nutritional_info(recipe_content: str, parent_app: tk.Tk):
     """Função para buscar e exibir informações nutricionais da receita."""
     if not model:
-        messagebox.showerror("API Não Configurada", "A chave de API para o Gemini não foi configurada corretamente. Verifique o console para mais detalhes.", parent=parent_app)
+        messagebox.showerror("API Não Configurada", "A chave de API para o Gemini não foi configurada corretamente.", parent=parent_app)
         return
         
     loading_window = tk.Toplevel(parent_app)
@@ -415,19 +448,19 @@ def show_nutritional_info(recipe_content: str, parent_app: tk.Tk):
                 "Analise a seguinte receita e forneça uma estimativa nutricional por porção."
                 "A resposta deve seguir esta estrutura EXATA, sem nenhuma palavra ou formatação adicional:\n\n"
                 "Estimativa nutricional para:\n"
-                "\{recipe_name_for_prompt}\:\n\n"
+                f"{recipe_name_for_prompt}:\n\n"
                 "Calorias: [valor] kcal\n"
                 "Proteínas: [valor] g\n"
                 "Carboidratos: [valor] g\n"
                 "Gorduras: [valor] g\n\n"
-                "------------------------------------\n"
+                "\n"
                 "Lembre-se que estes são valores aproximados e podem variar. Para um acompanhamento preciso, consulte um nutricionista.\n"
-                "RECEITA A SER ANALISADA:\n{recipe_content}"
+                f"RECEITA A SER ANALISADA:\n{recipe_content}"
         )
             response = model.generate_content(prompt)        
         except Exception as e:
             response = None
-            error_message = "Ocorreu um erro ao consultar as informações nutricionais:\n{e}"
+            error_message = f"Ocorreu um erro ao consultar as informações nutricionais:\n{e}"
         
         def on_complete():
             progress_bar.stop()
@@ -576,19 +609,11 @@ def display_selected_recipe(recipe_filepath: Path, parent_app):
         def save_changes():
             nonlocal original_recipe_content, current_filepath
             new_content = text_area.get("1.0", "end-1c").strip()
+            original_recipe_content = new_content # Atualiza a variável local para que o botão cancelar funcione corretamente depois
             with open(current_filepath, "w", encoding="utf-8") as f: f.write(new_content)
             messagebox.showinfo("Sucesso", "Receita salva!", parent=recipe_window)
             populate_recipe_buttons(parent_app)
             toggle_edit_mode()
-
-            def save_changes():
-                nonlocal original_recipe_content, current_filepath
-                new_content = text_area.get("1.0", "end-1c").strip()
-                original_recipe_content = new_content # <--- ADICIONE ESTA LINHA
-                with open(current_filepath, "w", encoding="utf-8") as f: f.write(new_content)
-                messagebox.showinfo("Sucesso", "Receita salva!", parent=recipe_window)
-                populate_recipe_buttons(parent_app)
-                toggle_edit_mode()
                     
         def toggle_favorite_and_update():
             nonlocal current_filepath
@@ -675,18 +700,11 @@ def populate_recipe_buttons(parent_app, filter_type=TIPO_DE_PRATO_OPTIONS[0]):
                 content = file_content.read()
                 recipe_type = extract_recipe_type_from_content(content)
                 
-                # Correção 1: Lógica de filtragem
-                # O problema estava aqui: o bloco de ordenação e exibição estava dentro do loop `for` ou no nível errado.
-                # A lógica correta é: se o filtro for 'Todos os Tipos', ou se o tipo da receita for igual ao filtro, adicione.
-                # Correção: Garante que a comparação de strings seja limpa
-                # Correção: Garante que a comparação de strings seja limpa
-                # Usa .strip() no filter_type para garantir que não haja espaços em branco indesejados na comparação
                 if filter_type == TIPO_DE_PRATO_OPTIONS[0] or recipe_type.strip() == filter_type.strip():
                     filtered_recipe_files.append(f)
         except Exception as e:
             print(f"AVISO: Não foi possível ler o arquivo {f.name} para filtragem: {e}")
 
-    # Correção 2: Ordenação e exibição devem ocorrer após o loop de filtragem
     recipe_files = sorted(
         filtered_recipe_files, 
         key=lambda f: (not f.name.startswith(FAVORITE_PREFIX), f.name.lower())
@@ -705,10 +723,6 @@ def populate_recipe_buttons(parent_app, filter_type=TIPO_DE_PRATO_OPTIONS[0]):
             try:
                 is_favorite = recipe_file_path.name.startswith(FAVORITE_PREFIX)
                 
-                # O conteúdo já foi lido durante a filtragem, mas para evitar
-                # reler o arquivo, vamos manter a estrutura e ler novamente.
-                # Em um cenário real, o conteúdo seria cacheado.
-                # Para simplificar a alteração mínima, vamos reler.
                 with open(recipe_file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 
@@ -908,10 +922,25 @@ class App(tk.Tk):
     def __init__(self, conexao_bd=None):
         super().__init__()
         self.conexao = conexao_bd 
+        
+        # --- INÍCIO DA VERIFICAÇÃO DE SESSÃO ---
+        self.session_manager = SessionManager()
+        self.user_id = None
+        
+        # Verifica se há conexão com o banco, se não, tenta criar
+        if not self.conexao or not self.conexao.is_connected():
+             self.conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+
+        # Verifica o token de login
+        if not self._validar_sessao():
+             messagebox.showwarning("Acesso Negado", "Você precisa estar logado para acessar suas receitas.")
+             self.destroy()
+             return
+        # --- FIM DA VERIFICAÇÃO DE SESSÃO ---
+
         global window, recipe_buttons_canvas, recipe_buttons_inner_frame
         window = self 
         
-        # Inicializa a variável de controle antes de criar o Combobox
         self.current_recipe_filter = tk.StringVar(value=TIPO_DE_PRATO_OPTIONS[0])
 
         self.title("MyGeli - Minhas Receitas")
@@ -1035,6 +1064,42 @@ class App(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing) 
 
+    # --- NOVA FUNÇÃO DE VALIDAÇÃO DE TOKEN ---
+    def _validar_sessao(self):
+        """Verifica se o token local é válido no banco de dados."""
+        token_data = self.session_manager.get_token()
+        if not token_data: return False
+
+        selector = token_data.get("selector")
+        authenticator = token_data.get("authenticator")
+        if not selector or not authenticator: return False
+
+        try:
+            if not self.conexao or not self.conexao.is_connected():
+                 self.conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)
+                 if not self.conexao: return False # Falha na conexão
+
+            cursor = self.conexao.cursor(dictionary=True)
+            query = "SELECT user_id, hashed_token, expires FROM login_tokens WHERE selector = %s"
+            cursor.execute(query, (selector,))
+            record = cursor.fetchone()
+            cursor.close()
+
+            if not record: return False # Token não existe no banco
+            if record['expires'] < datetime.now(): return False # Expirou
+
+            hashed_auth_check = hashlib.sha256(authenticator.encode()).hexdigest()
+            if hashed_auth_check == record['hashed_token']:
+                self.user_id = record['user_id'] # Define o usuário da sessão
+                print(f"Log (gui2): Acesso autorizado para user_id {self.user_id}")
+                return True
+            else:
+                return False
+        except Error as e:
+            print(f"Log (gui2): Erro ao validar sessão: {e}")
+            return False
+    # -----------------------------------------
+
     def on_recipe_type_select(self, event):
         """Callback chamado quando um novo tipo de prato é selecionado."""
         selected_type = self.current_recipe_filter.get()
@@ -1050,7 +1115,5 @@ class App(tk.Tk):
 # --- Execução da Aplicação ---
 if __name__ == "__main__":
     SAVED_RECIPES_DIR.mkdir(parents=True, exist_ok=True)
-
-    # conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha) # Descomente para usar o MySQL
-    app = App(conexao_bd=None) # Passa None para a conexão para evitar erros de inicialização
+    app = App(conexao_bd=None) 
     app.mainloop()
