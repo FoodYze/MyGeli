@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estoque | MyGeli</title>
+  
+  <link rel="icon" href="{{ url_for('static', filename='estoque-page/assets/geli_icon.png') }}">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+  
+  <link rel="stylesheet" href="{{ url_for('static', filename='estoque-page/style.css') }}">
+</head>
+<body>
+
+  <div class="loader-wrapper" id="loader-wrapper">
+    <div class="loader-container">
+      <p class="loader-text">Carregando</p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <p class="progress-percentage" id="progress-percentage">0%</p>
+    </div>
+  </div>
+
+  <nav class="nav-drawer" aria-label="Menu de Navegação Principal">
+    <div class="logo"></div>
+    <ul>
+      <li><a href="{{ url_for('general_page') }}">Geral</a></li>
+      <li><a href="{{ url_for('chatbot_page') }}">Chat</a></li>
+      <li><a href="{{ url_for('recipes_page') }}">Receitas</a></li>
+      <li style="background-color: #318EAD;"><a href="{{ url_for('estoque_page') }}">Estoque</a></li>
+      <li><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
+    </ul>
+  </nav>
+
+  <div class="container" id="main-content">
+    
+    <header class="app-header">
+      <h1 class="heading">Meu Estoque</h1>
+      <p class="sub-heading">Gerencie os itens da sua despensa.</p>
+    </header>
+
+    <button class="btn-save" id="add-item-btn">
+      <span class="material-symbols-rounded">add</span>
+      Adicionar Novo Item
+    </button>
+
+    <div class="table-wrapper">
+      <table class="stock-table">
+        <thead>
+          <tr>
+            <th>Nome do Item</th>
+            <th>Quantidade</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="stock-table-body">
+          <!-- Linhas preenchidas via JS -->
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- MODAL: ADICIONAR/EDITAR ITEM -->
+  <div class="modal-overlay" id="item-modal">
+    <div class="modal-content">
+      <h2 id="modal-title">Adicionar Novo Item</h2>
+      <form id="item-form">
+        <input type="hidden" id="item-id">
+        
+        <div class="form-group">
+          <label for="item-name">Nome do Item</label>
+          <input type="text" id="item-name" required>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="item-quantity">Quantidade</label>
+            <input type="number" id="item-quantity" required min="0" step="any" placeholder="Ex: 1.5">
+          </div>
+          <div class="form-group">
+            <label for="item-unit">Unidade</label>
+            <select id="item-unit" required>
+              <option value="Unidades">Unidades</option>
+              <option value="Quilos (Kg)">Quilos (Kg)</option>
+              <option value="Gramas (g)">Gramas (g)</option>
+              <option value="Litros (L)">Litros (L)</option>
+              <option value="Mililitros (ml)">Mililitros (ml)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="modal-cancel">Cancelar</button>
+          <button type="submit" class="btn-save">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- NOVO MODAL: CONSUMIR/USAR ITEM -->
+  <div class="modal-overlay" id="consume-modal">
+    <div class="modal-content">
+      <h2>Usar Item do Estoque</h2>
+      <p class="modal-description">Informe quanto você usou. O sistema converterá as unidades automaticamente.</p>
+      <form id="consume-form">
+        
+        <div class="form-group">
+          <label for="consume-item-select">Selecione o Item</label>
+          <select id="consume-item-select" required>
+            <!-- Preenchido via JS com os itens do estoque -->
+          </select>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="consume-quantity">Quantidade Usada</label>
+            <input type="number" id="consume-quantity" required min="0.01" step="any" placeholder="Ex: 200">
+          </div>
+          <div class="form-group">
+            <label for="consume-unit">Unidade</label>
+            <select id="consume-unit" required>
+              <option value="Unidades">Unidades</option>
+              <option value="Quilos (Kg)">Quilos (Kg)</option>
+              <option value="Gramas (g)">Gramas (g)</option>
+              <option value="Litros (L)">Litros (L)</option>
+              <option value="Mililitros (ml)">Mililitros (ml)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="consume-cancel">Cancelar</button>
+          <button type="submit" class="btn-delete-confirm">Confirmar Uso</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMAR EXCLUSÃO -->
+  <div class="modal-overlay" id="confirm-modal">
+    <div class="modal-content small">
+      <h2>Confirmar Exclusão</h2>
+      <p>Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="confirm-cancel">Não</button>
+        <button type="button" class="btn-delete-confirm" id="confirm-delete">Sim, Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='estoque-page/script.js') }}"></script>
+</body>
+</html>
