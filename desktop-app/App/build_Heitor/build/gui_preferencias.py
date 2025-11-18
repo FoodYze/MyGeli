@@ -107,6 +107,14 @@ class PreferencesApp(ctk.CTk):
         ctk.CTkLabel(self.tab_view.tab("Perfil"), text="Email:", font=self.label_font, text_color=self.NORMAL_TEXT_COLOR).pack(anchor="w", padx=10)
         self.email_entry = ctk.CTkEntry(self.tab_view.tab("Perfil"), font=self.text_font, state="disabled")
         self.email_entry.pack(fill="x", pady=(2, 15), padx=10)
+        delete_button = ctk.CTkButton(
+            self.tab_view.tab("Perfil"),
+            text="Excluir Conta Permanentemente",
+            command=self._confirmar_exclusao,
+            fg_color="#D32F2F",
+            hover_color="#B71C1C"
+        )
+        delete_button.pack(side="bottom", pady=20, padx=10)
 
         # --- Frame Rolável para as Preferências ---
         preferences_scroll_frame = ctk.CTkScrollableFrame(self.tab_view.tab("Preferências"), fg_color="transparent")
@@ -261,6 +269,36 @@ class PreferencesApp(ctk.CTk):
             subprocess.Popen([sys.executable, origin_path])
         except Exception as e:
             print(f"Erro ao tentar abrir a tela de origem '{self.origin_screen}': {e}")
+
+    def _confirmar_exclusao(self):
+        """Pede a confirmação do usuário antes de apagar a conta."""
+        resposta = messagebox.askyesno("EXCLUIR CONTA",
+                                       "ATENÇÃO!\n\nVocê tem CERTEZA?\n\nEsta ação é IRREVERSÍVEL e apagará TODOS os seus dados (estoque, receitas, etc.) permanentemente.",
+                                       icon="warning", parent=self)
+        if resposta:
+            self._executar_exclusao_conta()
+
+    def _executar_exclusao_conta(self):
+        """Executa a exclusão de todos os dados do usuário e faz logout."""
+        if not self.conexao or not self.conexao.is_connected():
+            messagebox.showerror("Erro de Conexão", "Erro de conexão com o banco.", parent=self)
+            return
+
+        cursor = None
+        try:
+            cursor = self.conexao.cursor()
+            cursor.execute("DELETE FROM usuarios WHERE id = %s", (self.user_id,))
+            self.conexao.commit()
+            
+            messagebox.showinfo("Conta Excluída", "Sua conta foi excluída permanentemente.")
+            self.session_manager.clear_session()
+            self.voltar()
+        except Error as e:
+            self.conexao.rollback()
+            messagebox.showerror("Erro no Banco de Dados", f"Falha ao excluir conta:\n{e}", parent=self)
+        finally:
+            if cursor:
+                cursor.close()
 
 if __name__ == "__main__":
     conexao = conectar_mysql(db_host, db_name, db_usuario, db_senha)

@@ -276,24 +276,17 @@ class App(ctk.CTk):
 
             self.opcoes_window = ctk.CTkToplevel(self)
             self.opcoes_window.title("Opções da Conta")
-            self.opcoes_window.geometry("300x200")
+            self.opcoes_window.geometry("300x150")
             self.opcoes_window.transient(self)
             self.opcoes_window.grab_set()
             self.opcoes_window.resizable(False, False)
            
-            self._centralizar_janela(self.opcoes_window, 300, 200)
-
+            self._centralizar_janela(self.opcoes_window, 300, 150)
             ctk.CTkLabel(self.opcoes_window, text=f"Opções para {self.user_first_name}", font=self.medium_font).pack(pady=(20, 15))
-
             btn_sair = ctk.CTkButton(self.opcoes_window, text="Sair da Conta",
                                      command=self._confirmar_logout,
                                      font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
             btn_sair.pack(pady=10, padx=20, fill="x")
-
-            btn_excluir = ctk.CTkButton(self.opcoes_window, text="Excluir Conta",
-                                        command=self._confirmar_exclusao,
-                                        font=self.button_font, fg_color=self.BUTTON_DANGER_COLOR, hover_color=self.BUTTON_DANGER_HOVER_COLOR)
-            btn_excluir.pack(pady=10, padx=20, fill="x")
            
         else:
             self._abrir_tela_login()
