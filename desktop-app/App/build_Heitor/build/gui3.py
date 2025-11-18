@@ -31,7 +31,6 @@ db_host = os.getenv('DB_HOST')
 db_name = os.getenv('DB_NAME')
 db_usuario = os.getenv('DB_USER')
 db_senha = os.getenv('DB_PASS')
-db_senha = "supfood0017admx"
 
 # --- RECUPERA A CHAVE API DO .ENV ---
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')

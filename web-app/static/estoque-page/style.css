@@ -1,0 +1,389 @@
+/* =========================================
+1. ESTILOS BASE (Copiado de profile-page/style.css para consistência)
+=========================================
+*/
+
+/* Importa a fonte Poppins usada no app */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+/* Define as variáveis de cor do app 
+  (Copiado de general-page/style.css) 
+*/
+:root {
+  /* Dark theme colors (padrão) */
+  --text-color: #edf3ff;
+  --subheading-color: #3FCEF6;
+  --placeholder-color: #c3cdde;
+  --primary-color: #101623;
+  --secondary-color: #283045;
+  --secondary-hover-color: #333e58;
+  --scrollbar-color: #626a7f;
+  --danger-color: #e74c3c;
+  --danger-hover-color: #c0392b;
+}
+
+body.light-theme {
+  /* Light theme colors */
+  --text-color: #090c13;
+  --subheading-color: #318EAD;
+  --placeholder-color: #606982;
+  --primary-color: #f3f7ff;
+  --secondary-color: #dce6f9;
+  --secondary-hover-color: #d2ddf2;
+  --scrollbar-color: #a2aac2;
+}
+
+
+/* Estilos da tela de carregamento (padrão do app) */
+.loader-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #FFFFFF; /* Fundo sempre branco */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+}
+.loader-wrapper.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+.loader-container {
+  text-align: center;
+  width: 80%;
+  max-width: 400px;
+}
+.loader-text {
+  font-family: sans-serif;
+  font-size: 24px;
+  font-weight: bold;
+  color: #002333;
+}
+.progress-bar-container {
+  width: 100%;
+  height: 15px;
+  background-color: #B4BEC9;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 15px 0;
+}
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background-color: #159A9C;
+  border-radius: 8px;
+  transition: width 0.3s ease;
+}
+
+/* Layout principal (padrão do app) */
+body {
+    color: var(--text-color);
+    background: var(--primary-color);
+    margin: 0;
+    display: flex;
+    opacity: 0; /* Começa invisível para o loader */
+    transition: opacity 0.5s ease-in-out;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+body.loaded {
+  opacity: 1; /* Mostra o body após o load */
+}
+
+/* Menu Lateral (padrão do app) */
+.nav-drawer {
+  width: 250px;
+  height: 100vh;
+  background-color: #002333; /* Fundo escuro fixo */
+  color: #159A9C;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  z-index: 999;
+  flex-shrink: 0;
+}
+.nav-drawer ul {
+  list-style: none;
+  padding: 20px 0;
+  margin: 0;
+}
+.nav-drawer li a {
+  display: block;
+  padding: 15px 30px;
+  color: #FFFFFF;
+  text-decoration: none;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+.logo {
+  display: flex;
+  margin: 0 auto;
+  margin-top: 20px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 3px solid #3FCEF6;
+  background: none;
+  /* O 'geli_icon.png' está em 'chatbot-page', ajustamos o path */
+  background-image: url('../chatbot-page/assets/geli_icon.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+.nav-drawer li a:hover {
+  background-color: #318EAD;
+  color: #FFFFFF;
+}
+
+/* Contêiner Principal (padrão do app) */
+.container {
+    flex-grow: 1;
+    padding: 30px 40px;
+    max-width: 900px; /* Aumentado para acomodar a tabela */
+    margin: 0 auto;
+    overflow-y: auto; /* Permite scroll no conteúdo */
+    height: 100vh;
+}
+
+/* Cabeçalho da Página (padrão do app) */
+.app-header {
+  margin-bottom: 20px;
+}
+.app-header .heading {
+  font-size: 2.5rem; /* Copiado de general-page.css */
+  background: linear-gradient(to right, #318EAD, #3FCEF6);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.app-header .sub-heading {
+  font-size: 1.2rem;
+  margin-top: -5px;
+  color: var(--subheading-color);
+}
+
+
+/* Estilos de Formulário (copiado de profile-page/style.css) */
+.form-group {
+    margin-bottom: 20px;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: var(--placeholder-color);
+}
+/* Inputs e Textareas */
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--secondary-color);
+    border: 1px solid var(--secondary-hover-color);
+    border-radius: 6px;
+    color: var(--text-color);
+    font-size: 1em;
+}
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--subheading-color);
+  box-shadow: 0 0 0 2px rgba(63, 206, 246, 0.3);
+}
+.form-row {
+  display: flex;
+  gap: 20px;
+}
+.form-row .form-group {
+  flex: 1;
+}
+
+/* Estilos de Botão (copiado de profile-page/style.css) */
+.btn-save {
+    background-color: #159A9C;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-save:hover {
+    background-color: #117a7d;
+}
+.btn-cancel {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+.btn-cancel:hover {
+  background-color: var(--secondary-hover-color);
+}
+
+
+/* =========================================
+2. NOVOS ESTILOS (Específicos da Página de Estoque)
+=========================================
+*/
+
+#add-item-btn {
+  margin-bottom: 25px;
+}
+
+/* Wrapper da Tabela para Responsividade */
+.table-wrapper {
+  overflow-x: auto; /* Adiciona scroll horizontal em telas pequenas */
+  background: var(--primary-color);
+  border: 1px solid var(--secondary-color);
+  border-radius: 8px;
+}
+
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-color);
+}
+
+.stock-table th,
+.stock-table td {
+  padding: 14px 18px;
+  text-align: left;
+  border-bottom: 1px solid var(--secondary-color);
+  white-space: nowrap; /* Impede que o texto quebre */
+}
+
+.stock-table th {
+  background-color: var(--secondary-color);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stock-table tbody tr:hover {
+  background-color: var(--secondary-hover-color);
+}
+
+/* Botões de Ação na Tabela */
+.action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 1.2rem;
+  font-family: 'Material Symbols Rounded', sans-serif;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+.action-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.btn-edit {
+  color: var(--subheading-color);
+  margin-right: 5px;
+}
+
+.btn-delete {
+  color: var(--danger-color);
+}
+
+/* Estilos do Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  
+  /* Animação */
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.modal-overlay.visible {
+  visibility: visible;
+  opacity: 1;
+}
+
+.modal-content {
+  background: var(--primary-color);
+  padding: 30px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 500px;
+  border: 1px solid var(--secondary-color);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  
+  /* Animação */
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+}
+.modal-overlay.visible .modal-content {
+  transform: scale(1);
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  margin-bottom: 25px;
+  color: var(--text-color);
+}
+
+.modal-content.small {
+  max-width: 400px;
+}
+.modal-content p {
+  margin-bottom: 25px;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-delete-confirm {
+  background-color: var(--danger-color);
+  color: white;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+.btn-delete-confirm:hover {
+  background-color: var(--danger-hover-color);
+}
