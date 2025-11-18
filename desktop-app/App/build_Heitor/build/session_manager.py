@@ -28,7 +28,7 @@ class SessionManager:
 
         # AGORA O ARQUIVO É OUTRO (auth_token.json)
         self.SESSION_FILE = self.data_dir / "auth_token.json"
-        print(f"Log: Caminho do token definido para: {self.SESSION_FILE}")
+        print(f"Log: Caminho do token definido para: {self.SESSION_FILE}") # Adição da branch do PR
 
     def save_token(self, selector, authenticator):
         """Salva o par de tokens localmente (como um cookie)."""
@@ -57,4 +57,5 @@ class SessionManager:
                 self.SESSION_FILE.unlink()
             print("Log: Token local apagado (logout).")
         except Exception as e:
+            # Conflito resolvido mantendo a linha da branch do PR
             print(f"Log: Erro ao limpar token local: {e}")
