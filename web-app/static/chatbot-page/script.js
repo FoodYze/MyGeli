@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const themeToggle = document.querySelector("#theme-toggle-btn");
 
   // ATENÇÃO: Esta chave de API está exposta publicamente.
-  const API_KEY = "AIzaSyAWdU1NiXHbiL7wnZSANHS-_VRu_odbg9I";
+  const API_KEY = "sua chave api";
   const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
   const SYSTEM_INSTRUCTION = `
