@@ -12,6 +12,7 @@ import re
 from tkinter import messagebox
 import threading
 from dotenv import load_dotenv
+from PIL import Image
 
 # --- NOVAS IMPORTAÇÕES PARA SEGURANÇA ---
 import hashlib
@@ -376,6 +377,13 @@ class App(ctk.CTk):
         self.title_label = ctk.CTkLabel(self.header, text=f"Geli (Olá, {self.user_first_name}!)",
                                         font=("Helvetica", 20, "bold"), text_color="white")
         self.title_label.pack(side="left", padx=(5,0), pady=10)
+        try:
+            assets_path = Path(__file__).parent / "assets" / "frame1"
+            options_image = ctk.CTkImage(Image.open(assets_path / "options.png").resize((28, 28), Image.LANCZOS), size=(28, 28))
+            options_button = ctk.CTkButton(self.header, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color="#0066CC", command=self.abrir_preferencias)
+            options_button.pack(side="right", padx=5, pady=5)
+        except Exception as e:
+            print(f"Erro ao carregar imagem de opções em gui0: {e}")
 
         self.chat_frame = ctk.CTkScrollableFrame(self, fg_color="#F0F0F0")
         self.chat_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
@@ -546,6 +554,14 @@ class App(ctk.CTk):
         name = re.sub(r'__+', '_', name) # Remove underscores duplicados
         name = re.sub(r'--+', '-', name) # Remove hífens duplicados
         return name[:100] # Limita o tamanho do nome do arquivo
+    
+    def abrir_preferencias(self):
+        self.destroy()
+        try:
+            preferencias_path = str(OUTPUT_PATH / "gui_preferencias.py")
+            subprocess.Popen([sys.executable, preferencias_path, "gui0.py"])
+        except Exception as e:
+            print(f"Erro ao tentar abrir gui_preferencias.py: {e}")
 
     def voltar(self):
         """Fecha a janela atual e tenta abrir gui1.py."""

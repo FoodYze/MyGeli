@@ -133,7 +133,7 @@ class App(ctk.CTk):
         user_button = ctk.CTkButton(header_frame, text="", image=user_icon_image, width=45, height=45, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._acao_usuario)
         user_button.pack(side="left", padx=10, pady=10)
         self.user_name_label = ctk.CTkLabel(header_frame, text="", font=self.header_name_font, text_color=self.BUTTON_TEXT_COLOR)
-        options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=None)
+        options_button = ctk.CTkButton(header_frame, text="", image=options_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=self._abrir_preferencias_com_origem)
         options_button.pack(side="right", padx=5, pady=5)
         calendario_button = ctk.CTkButton(header_frame, text="", image=calendario_image, width=40, height=40, fg_color="transparent", hover_color=self.BUTTON_HOVER_COLOR, command=lambda: self._abrir_gui_com_verificacao("gui5_planejamento.py"))
         calendario_button.pack(side="right", padx=5, pady=5)
@@ -183,6 +183,19 @@ class App(ctk.CTk):
             # Não faz rollback aqui para não atrapalhar a transação principal se houver
         finally:
             if cursor: cursor.close()
+
+    def _abrir_preferencias_com_origem(self):
+        if self.user_id:
+            try:
+                self.destroy()
+                caminho_script = str(Path(__file__).parent / "gui_preferencias.py")
+                # Envia "gui1.py" como argumento
+                subprocess.Popen([sys.executable, caminho_script, "gui1.py"])
+            except Exception as e:
+                print(f"Erro ao tentar abrir gui_preferencias.py: {e}")
+        else:
+            messagebox.showwarning("Acesso Restrito", "Entre em uma conta para utilizar a ferramenta!")
+
 
     # --- MÉTODOS DE PERSISTÊNCIA ---
     def _create_remember_token(self):
@@ -263,24 +276,17 @@ class App(ctk.CTk):
 
             self.opcoes_window = ctk.CTkToplevel(self)
             self.opcoes_window.title("Opções da Conta")
-            self.opcoes_window.geometry("300x200")
+            self.opcoes_window.geometry("300x150")
             self.opcoes_window.transient(self)
             self.opcoes_window.grab_set()
             self.opcoes_window.resizable(False, False)
            
-            self._centralizar_janela(self.opcoes_window, 300, 200)
-
+            self._centralizar_janela(self.opcoes_window, 300, 150)
             ctk.CTkLabel(self.opcoes_window, text=f"Opções para {self.user_first_name}", font=self.medium_font).pack(pady=(20, 15))
-
             btn_sair = ctk.CTkButton(self.opcoes_window, text="Sair da Conta",
                                      command=self._confirmar_logout,
                                      font=self.button_font, fg_color=self.BUTTON_COLOR, hover_color=self.BUTTON_HOVER_COLOR)
             btn_sair.pack(pady=10, padx=20, fill="x")
-
-            btn_excluir = ctk.CTkButton(self.opcoes_window, text="Excluir Conta",
-                                        command=self._confirmar_exclusao,
-                                        font=self.button_font, fg_color=self.BUTTON_DANGER_COLOR, hover_color=self.BUTTON_DANGER_HOVER_COLOR)
-            btn_excluir.pack(pady=10, padx=20, fill="x")
            
         else:
             self._abrir_tela_login()
