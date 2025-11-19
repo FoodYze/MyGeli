@@ -1,23 +1,11 @@
 /* =========================================
-1. ESTILOS BASE (Copiado de profile-page/style.css para consistência)
-=========================================
-*/
-
-/* Importa a fonte Poppins usada no app */
+   ESTILOS BASE (Mantidos/Adaptados)
+========================================= */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Poppins", sans-serif;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: "Poppins", sans-serif; }
 
-/* Define as variáveis de cor do app 
-  (Copiado de general-page/style.css) 
-*/
 :root {
-  /* Dark theme colors (padrão) */
   --text-color: #edf3ff;
   --subheading-color: #3FCEF6;
   --placeholder-color: #c3cdde;
@@ -27,10 +15,11 @@
   --scrollbar-color: #626a7f;
   --danger-color: #e74c3c;
   --danger-hover-color: #c0392b;
+  --warning-color: #f39c12; /* Cor para alertas de estoque baixo */
+  --success-color: #2ecc71;
 }
 
 body.light-theme {
-  /* Light theme colors */
   --text-color: #090c13;
   --subheading-color: #318EAD;
   --placeholder-color: #606982;
@@ -40,350 +29,135 @@ body.light-theme {
   --scrollbar-color: #a2aac2;
 }
 
+/* Layout */
+body { color: var(--text-color); background: var(--primary-color); display: flex; height: 100vh; overflow: hidden; opacity: 0; transition: opacity 0.5s; }
+body.loaded { opacity: 1; }
 
-/* Estilos da tela de carregamento (padrão do app) */
-.loader-wrapper {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: #FFFFFF; /* Fundo sempre branco */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-  transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
-}
-.loader-wrapper.hidden {
-  opacity: 0;
-  visibility: hidden;
-}
-.loader-container {
-  text-align: center;
-  width: 80%;
-  max-width: 400px;
-}
-.loader-text {
-  font-family: sans-serif;
-  font-size: 24px;
-  font-weight: bold;
-  color: #002333;
-}
-.progress-bar-container {
-  width: 100%;
-  height: 15px;
-  background-color: #B4BEC9;
-  border-radius: 8px;
-  overflow: hidden;
-  margin: 15px 0;
-}
-.progress-bar {
-  height: 100%;
-  width: 0%;
-  background-color: #159A9C;
-  border-radius: 8px;
-  transition: width 0.3s ease;
-}
+/* Loader */
+.loader-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #FFF; z-index: 9999; display: flex; justify-content: center; align-items: center; transition: opacity 0.5s, visibility 0.5s; }
+.loader-wrapper.hidden { opacity: 0; visibility: hidden; }
+.loader-container { text-align: center; width: 80%; max-width: 400px; }
+.loader-text { color: #002333; font-weight: bold; font-size: 24px; }
+.progress-bar-container { width: 100%; height: 15px; background: #B4BEC9; border-radius: 8px; margin: 15px 0; overflow: hidden; }
+.progress-bar { height: 100%; width: 0%; background: #159A9C; transition: width 0.3s; }
 
-/* Layout principal (padrão do app) */
-body {
-    color: var(--text-color);
-    background: var(--primary-color);
-    margin: 0;
-    display: flex;
-    opacity: 0; /* Começa invisível para o loader */
-    transition: opacity 0.5s ease-in-out;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
-}
+/* Menu Lateral */
+.nav-drawer { width: 250px; height: 100vh; background: #002333; color: #159A9C; flex-shrink: 0; z-index: 999; }
+.nav-drawer ul { list-style: none; padding: 20px 0; }
+.nav-drawer li a { display: block; padding: 15px 30px; color: #FFF; text-decoration: none; transition: 0.3s; }
+.nav-drawer li a:hover { background: #318EAD; }
+.logo { width: 150px; height: 150px; margin: 20px auto; border-radius: 50%; border: 3px solid #3FCEF6; background: url('../chatbot-page/assets/geli_icon.png') center/cover no-repeat; }
 
-body.loaded {
-  opacity: 1; /* Mostra o body após o load */
-}
+/* Container Principal */
+.container { flex-grow: 1; padding: 30px 40px; max-width: 1000px; margin: 0 auto; overflow-y: auto; height: 100vh; }
 
-/* Menu Lateral (padrão do app) */
-.nav-drawer {
-  width: 250px;
-  height: 100vh;
-  background-color: #002333; /* Fundo escuro fixo */
-  color: #159A9C;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-  z-index: 999;
-  flex-shrink: 0;
-}
-.nav-drawer ul {
-  list-style: none;
-  padding: 20px 0;
-  margin: 0;
-}
-.nav-drawer li a {
-  display: block;
-  padding: 15px 30px;
-  color: #FFFFFF;
-  text-decoration: none;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-.logo {
-  display: flex;
-  margin: 0 auto;
-  margin-top: 20px;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  border: 3px solid #3FCEF6;
-  background: none;
-  /* O 'geli_icon.png' está em 'chatbot-page', ajustamos o path */
-  background-image: url('../chatbot-page/assets/geli_icon.png');
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-}
-.nav-drawer li a:hover {
-  background-color: #318EAD;
-  color: #FFFFFF;
-}
+/* Cabeçalho Flexível */
+.header-flex { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+.heading { font-size: 2.5rem; background: linear-gradient(to right, #318EAD, #3FCEF6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.sub-heading { font-size: 1.2rem; color: var(--subheading-color); }
 
-/* Contêiner Principal (padrão do app) */
-.container {
-    flex-grow: 1;
-    padding: 30px 40px;
-    max-width: 900px; /* Aumentado para acomodar a tabela */
-    margin: 0 auto;
-    overflow-y: auto; /* Permite scroll no conteúdo */
-    height: 100vh;
-}
-
-/* Cabeçalho da Página (padrão do app) */
-.app-header {
-  margin-bottom: 20px;
-}
-.app-header .heading {
-  font-size: 2.5rem; /* Copiado de general-page.css */
-  background: linear-gradient(to right, #318EAD, #3FCEF6);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.app-header .sub-heading {
-  font-size: 1.2rem;
-  margin-top: -5px;
-  color: var(--subheading-color);
-}
-
-
-/* Estilos de Formulário (copiado de profile-page/style.css) */
-.form-group {
-    margin-bottom: 20px;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: bold;
-    color: var(--placeholder-color);
-}
-/* Inputs e Textareas */
-.form-group input,
-.form-group textarea,
-.form-group select {
-    width: 100%;
-    padding: 12px;
-    background-color: var(--secondary-color);
-    border: 1px solid var(--secondary-hover-color);
-    border-radius: 6px;
-    color: var(--text-color);
-    font-size: 1em;
-}
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: var(--subheading-color);
-  box-shadow: 0 0 0 2px rgba(63, 206, 246, 0.3);
-}
-.form-row {
-  display: flex;
-  gap: 20px;
-}
-.form-row .form-group {
-  flex: 1;
-}
-
-/* Estilos de Botão (copiado de profile-page/style.css) */
-.btn-save {
-    background-color: #159A9C;
-    color: white;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1em;
-    font-weight: bold;
-    transition: background-color 0.3s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-.btn-save:hover {
-    background-color: #117a7d;
-}
-.btn-cancel {
-    background-color: var(--secondary-color);
-    color: var(--text-color);
-    padding: 12px 20px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1em;
-    font-weight: bold;
-    transition: background-color 0.3s;
-}
-.btn-cancel:hover {
-  background-color: var(--secondary-hover-color);
-}
-
-
-/* =========================================
-2. NOVOS ESTILOS (Específicos da Página de Estoque)
-=========================================
-*/
-
-#add-item-btn {
-  margin-bottom: 25px;
-}
-
-/* Wrapper da Tabela para Responsividade */
-.table-wrapper {
-  overflow-x: auto; /* Adiciona scroll horizontal em telas pequenas */
-  background: var(--primary-color);
-  border: 1px solid var(--secondary-color);
-  border-radius: 8px;
-}
-
-.stock-table {
-  width: 100%;
-  border-collapse: collapse;
+/* Botão de Notificação (Sininho) */
+.notification-btn {
+  background: var(--secondary-color);
+  border: none;
   color: var(--text-color);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s;
+}
+.notification-btn:hover { background: var(--secondary-hover-color); }
+.notification-btn .material-symbols-rounded { font-size: 1.8rem; }
+.badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--danger-color);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 4px 7px;
+  border-radius: 50%;
+  border: 2px solid var(--primary-color);
 }
 
-.stock-table th,
-.stock-table td {
-  padding: 14px 18px;
-  text-align: left;
-  border-bottom: 1px solid var(--secondary-color);
-  white-space: nowrap; /* Impede que o texto quebre */
-}
+/* Barra de Ações */
+.actions-bar { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
 
-.stock-table th {
-  background-color: var(--secondary-color);
-  font-weight: 600;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Botões Padrão */
+.btn-save, .btn-voice {
+  color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 8px; transition: 0.3s; font-size: 1rem;
 }
+.btn-save { background-color: #159A9C; }
+.btn-save:hover { background-color: #117a7d; }
+.btn-cancel { background-color: var(--secondary-color); color: var(--text-color); padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+.btn-cancel:hover { background-color: var(--secondary-hover-color); }
+.btn-delete-confirm { background-color: var(--danger-color); color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+.btn-delete-confirm:hover { background-color: var(--danger-hover-color); }
 
-.stock-table tbody tr:hover {
-  background-color: var(--secondary-hover-color);
-}
+/* Botão de Voz */
+.btn-voice { background-color: #5856D6; } /* Cor roxa parecida com o Desktop */
+.btn-voice:hover { background-color: #4341A7; }
+
+/* Tabela */
+.table-wrapper { overflow-x: auto; background: var(--primary-color); border: 1px solid var(--secondary-color); border-radius: 8px; }
+.stock-table { width: 100%; border-collapse: collapse; color: var(--text-color); }
+.stock-table th, .stock-table td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--secondary-color); white-space: nowrap; }
+.stock-table th { background-color: var(--secondary-color); font-weight: 600; text-transform: uppercase; font-size: 0.9rem; }
+.stock-table tbody tr:hover { background-color: var(--secondary-hover-color); }
 
 /* Botões de Ação na Tabela */
-.action-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 8px;
-  font-size: 1.2rem;
-  font-family: 'Material Symbols Rounded', sans-serif;
-  border-radius: 50%;
-  transition: background-color 0.2s;
-}
-.action-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
+.action-btn { background: none; border: none; cursor: pointer; padding: 4px; font-size: 1.2rem; border-radius: 50%; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+.action-btn:hover { background-color: rgba(255,255,255,0.1); }
+.btn-edit { color: var(--subheading-color); }
+.btn-delete { color: var(--danger-color); }
+.btn-info { color: var(--success-color); } /* Verde para nutrição */
 
-.btn-edit {
-  color: var(--subheading-color);
-  margin-right: 5px;
-}
+/* Modais */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 1000; visibility: hidden; opacity: 0; transition: 0.3s; }
+.modal-overlay.visible { visibility: visible; opacity: 1; }
+.modal-content { background: var(--primary-color); padding: 30px; border-radius: 10px; width: 90%; max-width: 500px; border: 1px solid var(--secondary-color); transform: scale(0.95); transition: 0.3s; max-height: 90vh; overflow-y: auto; }
+.modal-overlay.visible .modal-content { transform: scale(1); }
+.modal-content h2 { margin-top: 0; margin-bottom: 20px; color: var(--text-color); }
+.modal-content.small { max-width: 400px; }
 
-.btn-delete {
-  color: var(--danger-color);
-}
+/* Formulários */
+.form-group { margin-bottom: 20px; }
+.form-group label { display: block; margin-bottom: 8px; font-weight: bold; color: var(--placeholder-color); }
+.form-group input, .form-group select { width: 100%; padding: 12px; background: var(--secondary-color); border: 1px solid var(--secondary-hover-color); border-radius: 6px; color: var(--text-color); }
+.form-row { display: flex; gap: 20px; }
+.form-row .form-group { flex: 1; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
 
-/* Estilos do Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(5px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  
-  /* Animação */
-  visibility: hidden;
-  opacity: 0;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
-}
-.modal-overlay.visible {
-  visibility: visible;
-  opacity: 1;
-}
+/* Estilos Específicos: Modal de Nutrição */
+.nutri-subtitle { color: var(--placeholder-color); margin-bottom: 15px; font-size: 0.9rem; }
+.nutri-table { width: 100%; border-collapse: collapse; }
+.nutri-table td { padding: 10px 0; border-bottom: 1px solid var(--secondary-color); color: var(--text-color); }
+.nutri-table td:first-child { font-weight: 500; }
+.nutri-table td:last-child { text-align: right; font-weight: bold; }
 
-.modal-content {
-  background: var(--primary-color);
-  padding: 30px;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 500px;
-  border: 1px solid var(--secondary-color);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  
-  /* Animação */
-  transform: scale(0.95);
-  transition: transform 0.3s ease;
-}
-.modal-overlay.visible .modal-content {
-  transform: scale(1);
-}
+/* Estilos Específicos: Modal de Notificações */
+.notifications-list { display: flex; flex-direction: column; gap: 10px; }
+.alert-item { padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-size: 0.95rem; }
+.alert-item.warning { background: rgba(243, 156, 18, 0.2); border: 1px solid var(--warning-color); color: #e67e22; } /* Laranja */
+.alert-item.danger { background: rgba(231, 76, 60, 0.2); border: 1px solid var(--danger-color); color: var(--danger-color); } /* Vermelho */
+.alert-icon { font-size: 1.4rem; }
+.no-alerts { text-align: center; color: var(--placeholder-color); font-style: italic; padding: 20px; }
 
-.modal-content h2 {
-  margin-top: 0;
-  margin-bottom: 25px;
-  color: var(--text-color);
-}
+/* Overlay de Voz */
+.voice-overlay { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: #5856D6; padding: 15px 30px; border-radius: 30px; display: flex; align-items: center; gap: 15px; color: white; box-shadow: 0 10px 25px rgba(88, 86, 214, 0.5); z-index: 2000; visibility: hidden; opacity: 0; transition: 0.3s; }
+.voice-overlay.active { visibility: visible; opacity: 1; }
+.voice-icon-anim { animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
 
-.modal-content.small {
-  max-width: 400px;
-}
-.modal-content p {
-  margin-bottom: 25px;
-  line-height: 1.6;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.btn-delete-confirm {
-  background-color: var(--danger-color);
-  color: white;
-  padding: 12px 20px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
-  font-weight: bold;
-  transition: background-color 0.3s;
-}
-.btn-delete-confirm:hover {
-  background-color: var(--danger-hover-color);
+/* Responsividade */
+@media (max-width: 600px) {
+  .actions-bar { flex-direction: column; }
+  .btn-save, .btn-voice { width: 100%; justify-content: center; }
+  .form-row { flex-direction: column; gap: 0; }
 }
