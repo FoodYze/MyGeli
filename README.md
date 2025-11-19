@@ -76,12 +76,13 @@ Nesse segundo semestre de 2025, a equipe MyGeli está desenvolvendo a versão De
 Tanto a versão Web quanto a Desktop necessitam das chaves de acesso para funcionar.
 1. Crie um arquivo chamado `.env` na pasta raiz do projeto.
 2. Cole suas credenciais no arquivo `.env`:
-```env
+```
 DB_HOST=localhost
 DB_NAME=mygeli
 DB_USER=seu_usuario
 DB_PASS=sua_senha
 GOOGLE_API_KEY=sua_chave_api_google
+```
 
 ## Como rodar o app?
 1. Ao abrir o projeto no VSCode ou outro editor, abra o terminal e crie o ambiente virtual.
