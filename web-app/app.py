@@ -216,7 +216,7 @@ def _execute_stock_update_web(user_id, recipe_data):
         if cursor: cursor.close()
         if cnx: cnx.close()
 
-# --- Rotas ---
+# --- Rotas Principais ---
 
 @app.route('/')
 def home():
@@ -320,10 +320,89 @@ def profile():
     uprefs = json.loads(udata.get('preferencias') or '{}') if udata.get('preferencias') else {'allergies':'','dietary_restrictions':'','other':''}
     return render_template('profile-page.html', user=udata, user_preferences=uprefs, success_message=msg)
 
+# --- ROTAS DE RECEITAS (CORRIGIDAS) ---
+
 @app.route('/recipes')
 def recipes_page():
+    """Rota para exibir a lista de receitas salvas pelo usuário."""
     if 'user_id' not in session: return redirect(url_for('login'))
-    return chatbot_page()
+    
+    uid = session['user_id']
+    recipes_list = []
+    cnx = None
+    cursor = None
+    
+    try:
+        cnx = db_service.get_db_connection()
+        cursor = cnx.cursor(dictionary=True)
+        # Busca todas as receitas do usuário
+        # Ajuste os nomes das colunas se forem diferentes no seu banco
+        query = "SELECT * FROM receitas WHERE idusuario = %s ORDER BY id DESC"
+        cursor.execute(query, (uid,))
+        recipes_list = cursor.fetchall()
+    except Exception as e:
+        print(f"Erro ao carregar receitas: {e}")
+    finally:
+        if cursor: cursor.close()
+        if cnx: cnx.close()
+        
+    # É necessário ter o arquivo 'recipes-page.html'
+    return render_template('recipes.html', recipes=recipes_list)
+
+@app.route('/api/recipe/<int:recipe_id>')
+def get_recipe_details(recipe_id):
+    """API para buscar detalhes de uma receita específica (ingredientes, etc)."""
+    if 'user_id' not in session: return jsonify({"error": "Unauthorized"}), 401
+    uid = session['user_id']
+    
+    cnx = None
+    cursor = None
+    try:
+        cnx = db_service.get_db_connection()
+        cursor = cnx.cursor(dictionary=True)
+        
+        # 1. Verifica se a receita pertence ao usuário
+        cursor.execute("SELECT * FROM receitas WHERE id=%s AND idusuario=%s", (recipe_id, uid))
+        recipe = cursor.fetchone()
+        
+        if not recipe:
+            return jsonify({"error": "Receita não encontrada"}), 404
+            
+        # 2. Tenta buscar ingredientes. (Adapte conforme sua estrutura: tabela separada ou JSON)
+        # Exemplo assumindo JSON armazenado na coluna 'ingredientes' da tabela receitas:
+        if 'ingredientes' in recipe and isinstance(recipe['ingredientes'], str):
+            try:
+                recipe['ingredientes'] = json.loads(recipe['ingredientes'])
+            except:
+                pass # Mantém como string se falhar
+        
+        # Exemplo alternativo: Buscando de uma tabela separada (descomente se for o caso)
+        # cursor.execute("SELECT * FROM receita_ingredientes WHERE id_receita=%s", (recipe_id,))
+        # recipe['ingredientes_lista'] = cursor.fetchall()
+
+        return jsonify(recipe)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if cnx: cnx.close()
+
+@app.route('/recipe/delete/<int:recipe_id>', methods=['POST'])
+def delete_recipe(recipe_id):
+    if 'user_id' not in session: return jsonify({"error": "Unauthorized"}), 401
+    uid = session['user_id']
+    cnx = None; cursor = None
+    try:
+        cnx = db_service.get_db_connection(); cursor = cnx.cursor()
+        cursor.execute("DELETE FROM receitas WHERE id=%s AND idusuario=%s", (recipe_id, uid))
+        cnx.commit()
+        return jsonify({"message": "Receita excluída com sucesso."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if cnx: cnx.close()
 
 # --- ROTAS DE ESTOQUE ---
 
