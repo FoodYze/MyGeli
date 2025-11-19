@@ -327,7 +327,7 @@ def recipes_page():
 
 # --- ROTAS DE ESTOQUE ---
 
-@app.route('/estoque-page')
+@app.route('/estoque_page')
 def estoque_page():
     if 'user_id' not in session: return redirect(url_for('login'))
     return render_template('estoque-page.html')
