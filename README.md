@@ -13,17 +13,16 @@
 <code><img height="32" src="https://github.com/devicons/devicon/blob/master/icons/python/python-original.svg" alt="Python"/></code>
 
 Bem vindo(a) ao MyGeli! 
-Sua mais nova assistente virtual da área de culinária, saúde e bem-estar. Nosso principal objetivo é combater o desperdício de alimentos domésticos no país, te
-ajudando a preparar receitas utilizando ingredientes presentes no estoque de sua geladeira, cascas e talos, e alimentos próximos do vencimento. Meu principal valor
-é a unificações de serviços e funcionalidades em uma única aplicação.
+Sua mais nova assistente virtual da área de culinária, saúde e bem-estar. Nosso principal objetivo é combater o desperdício de alimentos domésticos no país, te ajudando a preparar receitas utilizando ingredientes presentes no estoque de sua geladeira, cascas e talos, e alimentos próximos do vencimento. Meu principal valor é a unificação de serviços e funcionalidades em uma única aplicação.
 
 ## Nossos serviços!
 
 Segue abaixo os serviços que oferecemos em nossa aplicação:
 
 - <b>Falar com a Geli:</b> Chatbot com I.A generativa do Gemini 2.5 Flash, personificada com a personalidade da Geli. Sugere receitas, fornece informações nutricionais dos alimentos, confecção de cardápios diários e semanais, etc.
-- <b>Ver receitas:</b> Vizualizar todas as receitas salvas geradas pela Geli, desde as receitas simples, até os cadápios. Com função de pesquisar receita, para uma busca mais profunda e específica.
-- <b>Gerenciar estoque:</b> Função de adicionar e remover itens do estoque disponível, informando o nome e quantidade do alimento. Todos os itens do estoque são salvos em um banco de dados profissional, seguro e confiável.
+- <b>Ver receitas:</b> Visualizar todas as receitas salvas geradas pela Geli, desde as receitas simples, até os cardápios. Com função de pesquisar receita, para uma busca mais profunda e específica.
+- <b>Gerenciar estoque:</b> Função de adicionar e remover itens do estoque disponível (manualmente ou por voz), informando o nome e quantidade do alimento. Todos os itens do estoque são salvos em um banco de dados profissional, seguro e confiável.
+- <b>Lista de Compras Inteligente:</b> Geração automática de itens para compra baseada no seu histórico de consumo e baixo estoque.
 
 ## Recursos, Documentação e Materiais
 
@@ -62,20 +61,29 @@ Nossa equipe desenvolvedora:
 
 ## Atualizações!
 
-Nesse segundo semestre de 2025, a equipe MyGeli está desenvolvendo uma versão web desktop do aplicativo, com as mesmas funcionalidades e ferramentas. Dentre as atualizações e modificações a serem feitas até o final do ano, estão:
+Nesse segundo semestre de 2025, a equipe MyGeli está desenvolvendo a versão Desktop e Web do aplicativo. Dentre as atualizações e modificações recentes, estão:
 
-- Disponibilidade de acesso multiplataforma (Desktop, Web);
-- Sistema de registro e autenticação de usuários;
-- Lista de compras;
-- Refinamento da IA da Geli;
-- Sistema de notificações;
-- Comandos por voz;
-- Melhorias de Design e Layout;
+- Disponibilidade de acesso multiplataforma (Desktop e Web);
+- Sistema de registro e autenticação de usuários seguro;
+- Lista de compras inteligente com IA;
+- Refinamento da IA da Geli (Gemini 2.5);
+- Comandos por voz (Desktop);
+- Melhorias de Design e Layout (Clean UI);
 - Sistema de preferências e restrições do usuário;
-- Correção de bugs;
 
-## Como rodar o app na nova estrutura Clean?
+## Configuração Obrigatória (Antes de Rodar)
 
+Tanto a versão Web quanto a Desktop necessitam das chaves de acesso para funcionar.
+1. Crie um arquivo chamado `.env` na pasta raiz do projeto.
+2. Cole suas credenciais no arquivo `.env`:
+```env
+DB_HOST=localhost
+DB_NAME=mygeli
+DB_USER=seu_usuario
+DB_PASS=sua_senha
+GOOGLE_API_KEY=sua_chave_api_google
+
+## Como rodar o app?
 1. Ao abrir o projeto no VSCode ou outro editor, abra o terminal e crie o ambiente virtual.
 ```
 python -m venv venv
@@ -84,18 +92,30 @@ python -m venv venv
 ```
 pip install -r requirements.txt
 ```
-3. Após isso, digite o seguinte comando no terminal: "cd web-app". Você será direcionado para a pasta do web-app.
+## Escolha sua versão: Versão Desktop e Web.
+# Opção 1: Versão Web (Navegador)
+1. Após isso, digite o seguinte comando no terminal: "cd web-app". Você será direcionado para a pasta do web-app.
 ```
 cd web-app
 ```
-4. Em seguida, rode o seguinte comando para abrir a aplicação no navegador:
+2. Em seguida, rode o seguinte comando para abrir a aplicação no navegador:
 ```
 python -m interfaces.web.app
 ```
-5. No terminal, clique no link → "* Running on http://127.0.0.1:5000"
-6. Com isso, a página web de login será aberta no navegador para testes.
+3. No terminal, clique no link → "* Running on http://127.0.0.1:5000"
+4. Com isso, a página web de login será aberta no navegador para testes.
 
 Obs: Se quiser testar a funcionalidade de login e cadastro, lembre-se de abrir o banco de dados!
+
+# Opção 2: Versão Desktop (App Nativo)
+1.Entre na pasta da aplicação desktop:
+```
+cd desktop-app
+```
+2. Execute o arquivo de inicialização:
+```
+python gui1.py
+```
 
 ## Agradecimento
 
