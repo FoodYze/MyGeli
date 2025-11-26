@@ -532,6 +532,14 @@ def update_stock_api():
         _execute_stock_update_web(session['user_id'], request.json)
         return jsonify({"message": "Estoque atualizado via receita!"})
     except Exception as e: return jsonify({"error": str(e)}), 500
+@app.route('/compras')
+def compras_page():
+    # Verifica se o usuário está logado (padrão do seu sistema)
+    if 'user_id' not in session: 
+        return redirect(url_for('login'))
+    
+    # Renderiza o arquivo HTML específico solicitado
+    return render_template('compras-page.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
