@@ -26,8 +26,8 @@
     <ul>
       <li><a href="{{ url_for('general_page') }}">Geral</a></li>
       <li style="background-color: #318EAD;"><a href="#">Chat</a></li>
-      <li><a href="#">Receitas</a></li>
-      <li><a href="#">Estoque</a></li>
+      <li><a href="{{ url_for('recipes_page') }}">Receitas</a></li>
+      <li><a href="{{ url_for('estoque_page') }}">Estoque</a></li>
       <li><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
     </ul>
   </nav>

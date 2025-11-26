@@ -14,11 +14,11 @@
     <nav class="nav-drawer" aria-label="Menu de Navegação Principal">
     <div class="logo"></div>
     <ul>
-      <li><a href="#">Geral</a></li>
+      <li><a href="{{ url_for('general_page') }}">Geral</a></li>
       <li><a href="{{ url_for('chatbot_page')}}">Chat</a></li>
-      <li><a href="#">Receitas</a></li>
-      <li><a href="#">Estoque</a></li>
-      <li style="background-color: #318EAD;"><a href="{{ url_for('profile') }}">Meu Perfil</a></li>
+      <li><a href="{{ url_for('recipes_page') }}">Receitas</a></li>
+      <li><a href="{{ url_for('estoque_page') }}">Estoque</a></li>
+      <li style="background-color: #318EAD;"><a href="#">Meu Perfil</a></li>
     </ul>
   </nav>
 
